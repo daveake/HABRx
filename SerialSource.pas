@@ -44,11 +44,22 @@ implementation
 
 procedure TSerialSource.InitialiseDevice;
 begin
-    SendSetting('F', GetSettingString('LoRaSerial', 'Frequency', '434.250'));
-    SendSetting('M', GetSettingString('LoRaSerial', 'Mode', '1'));
+    SendSetting('F', GetSettingString(GroupName, 'Frequency', '434.250'));
+    SendSetting('M', GetSettingString(GroupName, 'Mode', '1'));
 end;
 
 {$IFDEF MSWINDOWS}
+function FixSerialPortName(ComPort: String): String;
+begin
+    Result := ComPort;
+
+    if Copy(ComPort, 1, 3) = 'COM' then begin
+        if Length(ComPort) > 4 then begin
+            Result := '\\.\' + ComPort;
+        end;
+    end;
+end;
+
 procedure TSerialSource.Execute;
 const
     Line: AnsiString='';
@@ -67,7 +78,7 @@ begin
 
     while not Terminated do begin
         if GetSettingBoolean(GroupName, 'Enabled', True) then begin
-            CommPort := GetSettingString(GroupName, 'Port', '');
+            CommPort := FixSerialPortName(GetSettingString(GroupName, 'Port', ''));
             SetGroupChangedFlag(GroupName, False);
 
             // Open serial port as a file

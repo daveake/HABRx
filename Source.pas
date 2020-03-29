@@ -47,7 +47,7 @@ type
     HasFrequency:       Boolean;
 
     // Meta
-    ReceivedLocally:    Boolean;
+    ReceivedRemotely:    Boolean;
 
     // Calculated Values
     Distance:           Double;

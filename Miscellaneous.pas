@@ -335,7 +335,7 @@ begin
     if Settings.ContainsKey(Key) then begin
         Result := Settings[Key];
     end else if Ini = nil then begin
-        Result := '';
+        Result := Default;
     end else begin
         Result := Ini.ReadString(Section, Item, Default);
         Settings.Add(Key, Result);
