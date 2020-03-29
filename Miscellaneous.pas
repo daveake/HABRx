@@ -38,6 +38,8 @@ function CalculateDescentTime(Altitude, DescentRate, Land: Double): Double;
 function DataFolder: String;
 function ImageFolder: String;
 function GetString(var Line: String; Delimiter: String=','): String;
+function GetTime(var Line: String; Delimiter: String = ','): TDateTime;
+function GetFloat(var Line: String; Delimiter: String = ','): Double;
 function SourceName(SourceID: Integer): String;
 procedure AddHostNameToIPAddress(HostName, IPAddress: String);
 function GetIPAddressFromHostName(HostName: String): String;
@@ -319,7 +321,9 @@ procedure InitialiseSettings;
 begin
     Settings := TSettings.Create;
 
-    Ini := TIniFile.Create(INIFileName);
+    if INIFileName <> '' then begin
+        Ini := TIniFile.Create(INIFileName);
+    end;
 end;
 
 function GetSettingString(Section, Item, Default: String): String;
@@ -330,6 +334,8 @@ begin
 
     if Settings.ContainsKey(Key) then begin
         Result := Settings[Key];
+    end else if Ini = nil then begin
+        Result := '';
     end else begin
         Result := Ini.ReadString(Section, Item, Default);
         Settings.Add(Key, Result);
@@ -348,6 +354,8 @@ begin
         except
             Result := Default;
         end;
+    end else if Ini = nil then begin
+        Result := Default;
     end else begin
         Temp := Ini.ReadString(Section, Item, '');
         Result := StrToIntDef(Temp, Default);
@@ -363,6 +371,8 @@ begin
 
     if Settings.ContainsKey(Key) then begin
         Result := Settings[Key];
+    end else if Ini = nil then begin
+        Result := Default;
     end else begin
         try
             Result := Ini.ReadBool(Section, Item, Default);
@@ -394,8 +404,10 @@ var
 begin
     Key := Section + '/' + Item;
     Settings.AddOrSetValue(Key, Value);
-    Ini.WriteString(Section, Item, Value);
-    Ini.UpdateFile;
+    if Ini <> nil then begin
+        Ini.WriteString(Section, Item, Value);
+        Ini.UpdateFile;
+    end;
 end;
 
 procedure SetSettingInteger(Section, Item: String; Value: Integer);
@@ -404,8 +416,10 @@ var
 begin
     Key := Section + '/' + Item;
     Settings.AddOrSetValue(Key, Value);
-    Ini.WriteInteger(Section, Item, Value);
-    Ini.UpdateFile;
+    if Ini <> nil then begin
+        Ini.WriteInteger(Section, Item, Value);
+        Ini.UpdateFile;
+    end;
 end;
 
 procedure SetSettingBoolean(Section, Item: String; Value: Boolean);
@@ -414,8 +428,10 @@ var
 begin
     Key := Section + '/' + Item;
     Settings.AddOrSetValue(Key, Value);
-    Ini.WriteBool(Section, Item, Value);
-    Ini.UpdateFile;
+    if Ini <> nil then begin
+        Ini.WriteBool(Section, Item, Value);
+        Ini.UpdateFile;
+    end;
 end;
 
 function GetString(var Line: String; Delimiter: String=','): String;
@@ -429,6 +445,42 @@ begin
     end else begin
         Result := Line;
         Line := '';
+    end;
+end;
+
+function GetFloat(var Line: String; Delimiter: String = ','): Double;
+var
+    Temp: String;
+begin
+    Temp := GetString(Line, Delimiter);
+
+    try
+        Result := StrToFloat(Temp);
+    except
+        Result := 0.0;
+    end;
+end;
+
+function GetTime(var Line: String; Delimiter: String = ','): TDateTime;
+var
+    Temp: String;
+begin
+    Temp := GetString(Line, Delimiter);
+
+    try
+        if Pos(':', Temp) > 0 then begin
+            Result := EncodeTime(StrToIntDef(Copy(Temp, 1, 2), 0),
+                      StrToIntDef(Copy(Temp, 4, 2), 0),
+                      StrToIntDef(Copy(Temp, 7, 2), 0),
+                      0);
+        end else begin
+            Result := EncodeTime(StrToIntDef(Copy(Temp, 1, 2), 0),
+                      StrToIntDef(Copy(Temp, 3, 2), 0),
+                      StrToIntDef(Copy(Temp, 5, 2), 0),
+                      0);
+        end;
+    except
+        Result := 0;
     end;
 end;
 

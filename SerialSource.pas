@@ -54,7 +54,7 @@ const
     Line: AnsiString='';
 var
     Position: THABPosition;
-    Sentence, Temp, CommPort: String;
+    Temp, CommPort, Sentence: String;
     hCommFile : THandle;
     TimeoutBuffer: PCOMMTIMEOUTS;
     DCB : TDCB;
@@ -66,82 +66,86 @@ begin
     Commands := TStringList.Create;
 
     while not Terminated do begin
-//        Sleep(5000);
-//        Position := ExtractPositionFrom('$$V4,18:26:09,40.320133,-3.724274,700,06,2,5.31,+23.3,+24.6,0,5,*61' + #10);
-//        SyncCallback(SourceID, True, '', Position);
+        if GetSettingBoolean(GroupName, 'Enabled', True) then begin
+            CommPort := GetSettingString(GroupName, 'Port', '');
+            SetGroupChangedFlag(GroupName, False);
 
-        CommPort := GetSettingString(GroupName, 'Port', '');
-        SetGroupChangedFlag(GroupName, False);
+            // Open serial port as a file
+            hCommFile := CreateFile(PChar(CommPort),
+                                  GENERIC_READ or GENERIC_WRITE,
+                                  0,
+                                  nil,
+                                  OPEN_EXISTING,
+                                  FILE_ATTRIBUTE_NORMAL,
+                                  0);
 
-        // Open serial port as a file
-        hCommFile := CreateFile(PChar(CommPort),
-                              GENERIC_READ or GENERIC_WRITE,
-                              0,
-                              nil,
-                              OPEN_EXISTING,
-                              FILE_ATTRIBUTE_NORMAL,
-                              0);
+             if hCommFile = INVALID_HANDLE_VALUE then begin
+                SyncCallback(SourceID, True, 'Cannot open serial port', Position);
+                Sleep(1000);
+             end else begin
+                // Set baud rate etc
+                GetCommState(hCommFile, DCB);
+                DCB.BaudRate := CBR_57600;
+                DCB.ByteSize := 8;
+                DCB.StopBits := ONESTOPBIT;
+                DCB.Parity := NOPARITY;
+                if SetCommState(hCommFile, DCB) then begin
+                    // Set timeouts
+                    GetMem(TimeoutBuffer, sizeof(COMMTIMEOUTS));
+                    GetCommTimeouts (hCommFile, TimeoutBuffer^);
+                    TimeoutBuffer.ReadIntervalTimeout        := 300;
+                    TimeoutBuffer.ReadTotalTimeoutMultiplier := 300;
+                    TimeoutBuffer.ReadTotalTimeoutConstant   := 300;
+                    SetCommTimeouts (hCommFile, TimeoutBuffer^);
+                    FreeMem(TimeoutBuffer, sizeof(COMMTIMEOUTS));
 
-         if hCommFile = INVALID_HANDLE_VALUE then begin
-            SyncCallback(SourceID, True, 'Cannot open serial port', Position);
-            Sleep(1000);
-         end else begin
-            // Set baud rate etc
-            GetCommState(hCommFile, DCB);
-            DCB.BaudRate := CBR_57600;
-            DCB.ByteSize := 8;
-            DCB.StopBits := ONESTOPBIT;
-            DCB.Parity := NOPARITY;
-            if SetCommState(hCommFile, DCB) then begin
-                // Set timeouts
-                GetMem(TimeoutBuffer, sizeof(COMMTIMEOUTS));
-                GetCommTimeouts (hCommFile, TimeoutBuffer^);
-                TimeoutBuffer.ReadIntervalTimeout        := 300;
-                TimeoutBuffer.ReadTotalTimeoutMultiplier := 300;
-                TimeoutBuffer.ReadTotalTimeoutConstant   := 300;
-                SetCommTimeouts (hCommFile, TimeoutBuffer^);
-                FreeMem(TimeoutBuffer, sizeof(COMMTIMEOUTS));
+                    // FillChar(Position, SizeOf(Position), 0);
+                    Position := Default(THABPosition);
+                    SyncCallback(SourceID, True, '', Position);
 
-                FillChar(Position, SizeOf(Position), 0);
-                SyncCallback(SourceID, True, '', Position);
+                    SyncCallback(SourceID, True, 'Connected to ' + CommPort, Position);
 
-                SyncCallback(SourceID, True, 'Connected to ' + CommPort, Position);
+                    InitialiseDevice;
 
-                InitialiseDevice;
-
-                while (not Terminated) and (not GetGroupChangedFlag(GroupName)) do begin
-                    if ReadFile(hCommFile, Buffer, sizeof(Buffer), NumberOfBytesRead, nil) then begin
-                        for i := 0 to NumberOfBytesRead - 1 do begin
-                            if Buffer[i] = #13 then begin
-                                Temp := String(Line);
-                                while Length(Temp) > 2 do begin
-                                    try
-                                        Position := ExtractPositionFrom(Sentence);
-                                        SyncCallback(SourceID, True, '', Position);
-                                    except
-                                        SendMessage('Decoding Failed');
+                    while (not Terminated) and (not GetGroupChangedFlag(GroupName)) do begin
+                        if ReadFile(hCommFile, Buffer, sizeof(Buffer), NumberOfBytesRead, nil) then begin
+                            for i := 0 to NumberOfBytesRead - 1 do begin
+                                if Buffer[i] = #13 then begin
+                                    Temp := String(Line);
+                                    while Length(Temp) > 2 do begin
+                                        try
+                                            Sentence := GetString(Temp, #10);
+                                            Position := ExtractPositionFrom(Sentence);
+                                            SyncCallback(SourceID, True, '', Position);
+                                        except
+                                            SendMessage('Decoding Failed');
+                                        end;
                                     end;
+                                    Line := '';
+                                end else if (Buffer[i] <> #10) or (Line <> '') then begin
+                                    Line := Line + Buffer[i];
                                 end;
-                                Line := '';
-                            end else if (Buffer[i] <> #10) or (Line <> '') then begin
-                                Line := Line + Buffer[i];
                             end;
                         end;
-                    end;
-                    if Commands.Count > 0 then begin
-                        Temp := Commands[0] + #13;
-                        for j := 1 to Length(Temp) do begin
-                            TxBuffer[j-1] := AnsiChar(Temp[j]);
+                        if Commands.Count > 0 then begin
+                            Temp := Commands[0] + #13;
+                            for j := 1 to Length(Temp) do begin
+                                TxBuffer[j-1] := AnsiChar(Temp[j]);
+                            end;
+                            WriteFile(hCommFile, TxBuffer, Length(Temp), NumberOfBytesWritten, nil);
+                            Commands.Delete(0);
+                            Sleep(100);
                         end;
-                        WriteFile(hCommFile, TxBuffer, Length(Temp), NumberOfBytesWritten, nil);
-                        Commands.Delete(0);
-                        Sleep(100);
                     end;
                 end;
-            end;
-            CloseHandle(hCommFile);
+                CloseHandle(hCommFile);
 
-            Sleep(100);
+                Sleep(100);
+            end;
+        end else begin
+            Position := Default(THABPosition);
+            SyncCallback(SourceID, True, 'Source disabled', Position);
+            Sleep(1000);
         end;
     end;
 end;
@@ -165,38 +169,40 @@ begin
     PermissionRequested := False;
 
     while not Terminated do begin
-//        Sleep(5000);
-//        Position := ExtractPositionFrom('$$V4,1,18:26:09,40.320133,-3.724274,700,06,2,5.31,+23.3,+24.6,0,5,*61' + #10);
-//        SyncCallback(SourceID, True, '', Position);
-
-        if UsbSerial.Opened then begin
-            if Commands.Count > 0 then begin
-                UsbSerial.Write(TEncoding.UTF8.GetBytes(Commands[0] + #13), 0);
-                Commands.Delete(0);
-                Sleep(100);
-            end;
-        end else begin
-            if SelectedUSBDevice = nil then begin
-                PermissionRequested := False;
+        if GetSettingBoolean(GroupName, 'Enabled', True) then begin
+            if UsbSerial.Opened then begin
+                if Commands.Count > 0 then begin
+                    UsbSerial.Write(TEncoding.UTF8.GetBytes(Commands[0] + #13), 0);
+                    Commands.Delete(0);
+                    Sleep(100);
+                end;
             end else begin
-                if UsbSerial.IsSupported(SelectedUSBDevice) then begin
-                    if UsbSerial.HasPermission(SelectedUSBDevice) then begin
-                        if OpenUSBDevice(SelectedUSBDevice) then begin
-                            SendMessage('USB Device Opened');
-                            ShowWhenReceiving := True;
-                            Sleep(2000);         // Give device a chance to initialise itself before we program it
-                            InitialiseDevice;
+                if SelectedUSBDevice = nil then begin
+                    PermissionRequested := False;
+                end else begin
+                    if UsbSerial.IsSupported(SelectedUSBDevice) then begin
+                        if UsbSerial.HasPermission(SelectedUSBDevice) then begin
+                            if OpenUSBDevice(SelectedUSBDevice) then begin
+                                SendMessage('USB Device Opened');
+                                ShowWhenReceiving := True;
+                                Sleep(2000);         // Give device a chance to initialise itself before we program it
+                                InitialiseDevice;
+                            end;
+                        end else if not PermissionRequested then begin
+                            PermissionRequested := True;
+                            SendMessage('Requested Permission');
+                            UsbSerial.RequestPermission(SelectedUSBDevice);
                         end;
-                    end else if not PermissionRequested then begin
-                        PermissionRequested := True;
-                        SendMessage('Requested Permission');
-                        UsbSerial.RequestPermission(SelectedUSBDevice);
                     end;
                 end;
             end;
-        end;
 
-        Sleep(100);
+            Sleep(100);
+        end else begin
+            Position := Default(THABPosition);
+            SyncCallback(SourceID, True, 'Source disabled', Position);
+            Sleep(1000);
+        end;
     end;
 end;
 

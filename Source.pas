@@ -13,6 +13,7 @@ type
     InUse:          Boolean;
     IsChase:        Boolean;
     IsSSDV:         Boolean;
+    Repeated:       Boolean;
     // ShowMessage:    Boolean;
     Channel:        Integer;
     PayloadID:      String;
@@ -44,6 +45,13 @@ type
     // Frequency error
     FrequencyError:     Double;
     HasFrequency:       Boolean;
+
+    // Meta
+    ReceivedLocally:    Boolean;
+
+    // Calculated Values
+    Distance:           Double;
+    PayloadDocID:       String;
   end;
 
 type
@@ -58,7 +66,7 @@ type
     SourceID: Integer;
     GroupName: String;
     SentenceCount: Integer;
-    Enabled: Boolean;
+//    Enabled: Boolean;
     PositionCallback: TSourcePositionCallback;
     procedure LookForPredictionInFields(var Position: THABPosition; Fields: TStringList);
     procedure SendMessage(Line: String);
@@ -68,8 +76,8 @@ type
     function ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition; virtual;
   public
     { Public declarations }
-    procedure Enable; virtual;
-    procedure Disable; virtual;
+//    procedure Enable; virtual;
+//    procedure Disable; virtual;
     procedure SendSetting(SettingName, SettingValue: String); virtual;
   public
     constructor Create(ID: Integer; Group: String; Callback: TSourcePositionCallback);
@@ -90,7 +98,7 @@ begin
     SourceID := ID;
     GroupName := Group;
     PositionCallback := Callback;
-    Enabled := True;
+//    Enabled := True;
     inherited Create(False);
 end;
 
@@ -145,8 +153,7 @@ var
     Temp, HostName, IPAddress: String;
     Offset: Integer;
 begin
-Result.Channel := 1;
-    FillChar(Position, SizeOf(Position), 0);
+    Position := Default(THABPosition);
 
     Position.Line := Line;
 
@@ -156,9 +163,16 @@ Result.Channel := 1;
         end;
 
         if Line <> '' then begin
-            if Line[1] = '$' then begin
+            // Check for repeated packets
+
+            if Line[Low(Line)] in ['$', '%'] then begin
                 // UKHAS sentence
-Result.Channel := 2;
+
+                if Line[Low(Line)] = '%' then begin
+                    Position.Repeated := True;
+                    Line[Low(Line)] := '$';
+                end;
+
                 Fields := TStringList.Create;
                 try
                     Split(',', Line, Fields);
@@ -173,13 +187,10 @@ Result.Channel := 2;
                             Offset := 1;
                         end;
 
-Result.Channel := 3;
                         if Fields.Count >= Offset+5 then begin
-Result.Channel := 4;
                             Position.InUse := True;
                             Position.ReceivedAt := Now;
                             Position.PayloadID := stringreplace(Fields[0], '$', '', [rfReplaceAll]);
-Result.Channel := 5;
 
                             if Pos(':', Fields[Offset+1]) > 0 then begin
                                 // Position.TimeStamp :=  StrToTime(Fields[2]);
@@ -193,18 +204,13 @@ Result.Channel := 5;
                                                                   StrToIntDef(Copy(Fields[Offset+1], 5, 2), 0),
                                                                   0);
                             end;
-Result.Channel := 6;
                             InsertDate(Position.TimeStamp);
-Result.Channel := 7;
                             Position.Latitude := MyStrToFloat(Fields[Offset+2]);
                             Position.Longitude := MyStrToFloat(Fields[Offset+3]);
-Result.Channel := 8;
                             Temp := Fields[Offset+4];
                             Position.Altitude := MyStrToFloat(GetString(Temp, '*'));
-Result.Channel := 9;
 
                             LookForPredictionInFields(Position, Fields);
-Result.Channel := 10;
                         end;
                     end;
                 finally
@@ -287,15 +293,15 @@ begin
     );
 end;
 
-procedure TSource.Enable;
-begin
-    Enabled := True;
-end;
-
-procedure TSource.Disable;
-begin
-    Enabled := False;
-end;
+//procedure TSource.Enable;
+//begin
+//    Enabled := True;
+//end;
+//
+//procedure TSource.Disable;
+//begin
+//    Enabled := False;
+//end;
 
 procedure TSource.SendSetting(SettingName, SettingValue: String);
 begin
@@ -306,7 +312,8 @@ procedure TSource.SendMessage(Line: String);
 var
     Position: THABPosition;
 begin
-    FillChar(Position, SizeOf(Position), 0);
+    // FillChar(Position, SizeOf(Position), 0);
+    Position := Default(THABPosition);
     SyncCallback(SourceID, True, Line, Position);
 end;
 
