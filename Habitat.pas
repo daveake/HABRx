@@ -10,7 +10,7 @@ private
     SSDVPackets: TStringList;
     CritSSDV, CritHabitat: TCriticalSection;
     OurCallsign: String;
-    HabitatSentence: Array[0..6] of String;
+    HabitatSentence: Array[0..32] of String;
     StatusCallback: TStatusCallback;
     procedure SyncCallback(SourceID: Integer; Active, OK: Boolean);
     procedure UploadSentence(SourceID: Integer; Telemetry: String);
