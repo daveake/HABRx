@@ -66,7 +66,7 @@ end;
 
 function TGatewaySource.ProcessJSON(Line: String): THABPosition;
 var
-    TimeStamp: String;
+    Sentence: String;
     Position: THABPosition;
 begin
     FillChar(Position, SizeOf(Position), 0);
@@ -74,28 +74,30 @@ begin
     // {"class":"POSN","payload":"NOTAFLIGHT","time":"13:01:56","lat":52.01363,"lon":-2.50647,"alt":5507,"rate":7.0}
 
     try
+        // Parse sentence
+        Sentence := GetJSONString(Line, 'sentence');
+        Position := ExtractPositionFromSentence(Sentence);
+
+        // Meta data from JSON
         Position.Channel := GetJSONInteger(Line, 'channel');
-        Position.PayloadID := GetJSONString(Line, 'payload');
-
-        TimeStamp := GetJSONString(Line, 'time');
-        if Length(TimeStamp) = 8 then begin
-            Position.TimeStamp := EncodeTime(StrToIntDef(Copy(TimeStamp, 1, 2), 0),
-                                             StrToIntDef(Copy(TimeStamp, 4, 2), 0),
-                                             StrToIntDef(Copy(TimeStamp, 7, 2), 0),
-                                             0);
-            InsertDate(Position.TimeStamp);
-        end;
-        Position.Latitude := GetJSONFloat(Line, 'lat');
-        Position.Longitude := GetJSONFloat(Line, 'lon');
-        Position.Altitude := GetJSONFloat(Line, 'alt');
-
         Position.PacketRSSI := GetJSONInteger(Line, 'rssi');
 
-        Position.ReceivedAt := Now;
-
-        Position.Line := GetJSONString(Line, 'sentence');
 
         LookForPredictionInSentence(Position);
+
+//        Position.PayloadID := GetJSONString(Line, 'payload');
+
+//        TimeStamp := GetJSONString(Line, 'time');
+//        if Length(TimeStamp) = 8 then begin
+//            Position.TimeStamp := EncodeTime(StrToIntDef(Copy(TimeStamp, 1, 2), 0),
+//                                             StrToIntDef(Copy(TimeStamp, 4, 2), 0),
+//                                             StrToIntDef(Copy(TimeStamp, 7, 2), 0),
+//                                             0);
+//            InsertDate(Position.TimeStamp);
+//        end;
+//        Position.Latitude := GetJSONFloat(Line, 'lat');
+//        Position.Longitude := GetJSONFloat(Line, 'lon');
+//        Position.Altitude := GetJSONFloat(Line, 'alt');
     except
     end;
 

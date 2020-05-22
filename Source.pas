@@ -73,6 +73,7 @@ type
     procedure LookForPredictionInSentence(var Position: THABPosition);
     procedure Execute; override;
     procedure SyncCallback(ID: Integer; Connected: Boolean; Line: String; Position: THABPosition);
+    function ExtractPositionFromSentence(Line: String; PayloadID: String = ''): THABPosition;
     function ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition; virtual;
   public
     { Public declarations }
@@ -103,11 +104,19 @@ begin
 end;
 
 procedure Split(Delimiter: Char; Str: string; ListOfStrings: TStrings) ;
+var
+    Temp: String;
 begin
    ListOfStrings.Clear;
    ListOfStrings.Delimiter       := Delimiter;
    ListOfStrings.StrictDelimiter := True;
    ListOfStrings.DelimitedText   := Str;
+
+    if ListOfStrings.Count > 0 then begin
+        // Remove "*CRC" from final field
+        Temp := ListOfStrings[ListOfStrings.Count-1];
+        ListOfStrings[ListOfStrings.Count-1] := GetString(Temp, '*');
+    end;
 end;
 
 procedure TSource.LookForPredictionInFields(var Position: THABPosition; Fields: TStringList);
@@ -116,7 +125,7 @@ var
 begin
     Position.ContainsPrediction := False;
 
-    for i := 6 to Fields.Count-3 do begin
+    for i := 6 to Fields.Count-2 do begin
         try
             if (Pos('.', Fields[i]) > 0) and (Pos('.', Fields[i+1]) > 0) then begin
                 if (abs(MyStrToFloat(Fields[i]) - Position.Latitude) < 1) and
@@ -147,6 +156,15 @@ begin
 end;
 
 function TSource.ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition;
+begin
+    if Pos('SENTENCE:', Line) = 1 then begin
+        Result := ExtractPositionFromSentence(Copy(Line, 10, Length(Line)));
+    end else begin
+        Result := ExtractPositionFromSentence(Line);
+    end;
+end;
+
+function TSource.ExtractPositionFromSentence(Line: String; PayloadID: String = ''): THABPosition;
 var
     Position: THABPosition;
     Fields: TStringList;
