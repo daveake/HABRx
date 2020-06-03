@@ -2,7 +2,7 @@ unit GatewaySource;
 
 interface
 
-uses SocketSource, Source, SysUtils, Classes,
+uses SocketSource, Miscellaneous, Source, SysUtils, Classes,
 {$IFDEF VCL}
   ExtCtrls, Windows
 {$ELSE}
@@ -27,7 +27,6 @@ type
 
 implementation
 
-uses Miscellaneous;
 
 procedure TGatewaySource.InitialiseDevice;
 begin
@@ -139,8 +138,6 @@ begin
         end;
     end;
 end;
-
-
 
 end.
 

@@ -91,7 +91,7 @@ begin
                                   0);
 
              if hCommFile = INVALID_HANDLE_VALUE then begin
-                SyncCallback(SourceID, True, 'Cannot open serial port', Position);
+                SyncCallback(SourceID, False, 'Cannot open serial port ' + CommPort, Position);
                 Sleep(1000);
              end else begin
                 // Set baud rate etc

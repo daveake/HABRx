@@ -2,57 +2,9 @@ unit Source;
 
 interface
 
-uses Classes, SysUtils;
+uses Classes, SysUtils, Miscellaneous;
 
 
-type TFlightMode = (fmIdle, fmLaunched, fmDescending, fmLanded);
-
-
-type
-  THABPosition = record
-    InUse:          Boolean;
-    IsChase:        Boolean;
-    IsSSDV:         Boolean;
-    Repeated:       Boolean;
-    // ShowMessage:    Boolean;
-    Channel:        Integer;
-    PayloadID:      String;
-    Counter:        Integer;
-    TimeStamp:      TDateTime;
-    Latitude:       Double;
-    Longitude:      Double;
-    Altitude:       Double;
-    MaxAltitude:    Double;
-    Direction:      Double;
-    DirectionValid: Boolean;
-    AscentRate:     Double;
-    FlightMode:     TFlightMode;
-    ReceivedAt:     TDateTime;
-    Line:           String;
-
-    ContainsPrediction:  Boolean;
-    PredictedLatitude: Double;
-    PredictedLongitude: Double;
-
-    // Packet signal information from the receiver
-    PacketRSSI:         Integer;
-    HasPacketRSSI:      Boolean;
-
-    // Current Signal information from the receiver
-    CurrentRSSI:        Integer;
-    HasCurrentRSSI:     Boolean;
-
-    // Frequency error
-    FrequencyError:     Double;
-    HasFrequency:       Boolean;
-
-    // Meta
-    ReceivedRemotely:    Boolean;
-
-    // Calculated Values
-    Distance:           Double;
-    PayloadDocID:       String;
-  end;
 
 type
   TSourcePositionCallback = procedure(ID: Integer; Connected: Boolean; Line: String; Position: THABPosition) of object;
@@ -85,8 +37,6 @@ type
   end;
 
 implementation
-
-uses Miscellaneous;
 
 procedure TSource.Execute;
 begin

@@ -2,11 +2,66 @@ unit Miscellaneous;
 
 interface
 
-uses DateUtils, Math, Source, HABTypes, INIFiles,
+uses DateUtils, Math, INIFiles,
 {$IFDEF ANDROID}
      Androidapi.JNI.Interfaces.JGeomagneticField,
 {$ENDIF}
      Generics.Collections, System.IOUtils;
+
+type TFlightMode = (fmIdle, fmLaunched, fmDescending, fmLanded);
+
+
+type
+  THABPosition = record
+    InUse:          Boolean;
+    IsChase:        Boolean;
+    IsSSDV:         Boolean;
+    Repeated:       Boolean;
+    // ShowMessage:    Boolean;
+    Channel:        Integer;
+    PayloadID:      String;
+    Counter:        Integer;
+    TimeStamp:      TDateTime;
+    Latitude:       Double;
+    Longitude:      Double;
+    Altitude:       Double;
+    MaxAltitude:    Double;
+    Satellites:     Integer;
+    Direction:      Double;
+    Elevation:      Double;
+    DirectionValid: Boolean;
+    AscentRate:     Double;
+    HaveAscentRate: Boolean;
+    FlightMode:     TFlightMode;
+    ReceivedAt:     TDateTime;
+    Line:           String;
+
+    ContainsPrediction:  Boolean;
+    PredictedLatitude: Double;
+    PredictedLongitude: Double;
+
+    // Packet signal information from the receiver
+    PacketRSSI:         Integer;
+    HasPacketRSSI:      Boolean;
+
+    // Current Signal information from the receiver
+    CurrentRSSI:        Integer;
+    HasCurrentRSSI:     Boolean;
+
+    // Frequency error
+    FrequencyError:     Double;
+    HasFrequency:       Boolean;
+
+    // Meta
+    ReceivedRemotely:    Boolean;
+
+    // Calculated Values
+    Distance:           Double;
+    PayloadDocID:       String;
+
+    // Field Indices
+    SatelliteFieldIndex:    Integer;
+  end;
 
 type
   TStatusCallback = procedure(SourceID: Integer; Active, OK: Boolean) of object;
@@ -28,23 +83,26 @@ type
 
 function CalculateDistance(HABLatitude, HabLongitude, CarLatitude, CarLongitude: Double): Double;
 function CalculateDirection(HABLatitude, HabLongitude, CarLatitude, CarLongitude: Double): Double;
+function CalculateElevation(lat1, lon1, alt1, lat2, lon2, alt2: Double): Double;
 function GetJSONString(Line: String; FieldName: String): String;
 function GetJSONInteger(Line: String; FieldName: String): LongInt;
 function GetJSONFloat(Line: String; FieldName: String): Double;
 function GetUDPString(Line: String; FieldName: String): String;
-function PayloadHasFieldType(Position: THABPosition; FieldType: TFieldType): Boolean;
 procedure InsertDate(var TimeStamp: TDateTime);
 function CalculateDescentTime(Altitude, DescentRate, Land: Double): Double;
 function DataFolder: String;
 function ImageFolder: String;
 function GetString(var Line: String; Delimiter: String=','): String;
 function GetTime(var Line: String; Delimiter: String = ','): TDateTime;
+function GetInteger(var Line: String; Delimiter: String = ','): Integer;
 function GetFloat(var Line: String; Delimiter: String = ','): Double;
 function SourceName(SourceID: Integer): String;
 procedure AddHostNameToIPAddress(HostName, IPAddress: String);
 function GetIPAddressFromHostName(HostName: String): String;
 function MyStrToFloat(Value: String): Double;
 function MyFormatFloat(Format: String; Value: Double): String;
+function CalculateHorizonRadius(Altitude, Elevation: Double): Double;
+procedure DoPositionCalculations(PreviousPosition: THABPosition; var NewPosition: THABPosition);
 
 {$IFDEF ANDROID}
     function MagneticDeclination: Single;
@@ -228,20 +286,6 @@ begin
     end else begin
         Result := 0;
     end;
-end;
-
-function PayloadHasFieldType(Position: THABPosition; FieldType: TFieldType): Boolean;
-var
-    i: Integer;
-begin
-    for i := 0 to length(Position.FieldList)-1 do begin
-        if Position.FieldList[i] = FieldType then begin
-            Result := True;
-            Exit;
-        end;
-    end;
-
-    Result := False;
 end;
 
 procedure InsertDate(var TimeStamp: TDateTime);
@@ -448,6 +492,15 @@ begin
     end;
 end;
 
+function GetInteger(var Line: String; Delimiter: String = ','): Integer;
+var
+    Temp: String;
+begin
+    Temp := GetString(Line, Delimiter);
+
+    Result := StrToIntDef(Temp, 0);
+end;
+
 function GetFloat(var Line: String; Delimiter: String = ','): Double;
 var
     Temp: String;
@@ -603,6 +656,36 @@ begin
     end;
 end;
 
+function CalculateElevation(lat1, lon1, alt1, lat2, lon2, alt2: Double): Double;
+const
+    Radius: Double = 6371000.0;
+var
+    d_lon, aa, ab, ea, eb, sa, sb, ta, tb, angle_at_centre: Double;
+begin
+    lat1 := DegToRad(lat1);
+    lat2 := DegToRad(lat2);
+    lon1 := DegToRad(lon1);
+    lon2 := DegToRad(lon2);
+
+    d_lon := lon2 - lon1;
+
+    sa := cos(lat2) * sin(d_lon);
+    sb := (cos(lat1) * sin(lat2)) - (sin(lat1) * cos(lat2) * cos(d_lon));
+
+    aa := sqrt((sqr(sa)) + (sqr(sb)));
+    ab := (sin(lat1) * sin(lat2)) + (cos(lat1) * cos(lat2) * cos(d_lon));
+
+    angle_at_centre := arctan2(aa, ab);
+
+    ta := radius + alt1;
+    tb := radius + alt2;
+
+    ea := (cos(angle_at_centre) * tb) - ta;
+    eb := sin(angle_at_centre) * tb;
+
+    Result := RadToDeg(arctan2(ea, eb));
+end;
+
 function MyFormatFloat(Format: String; Value: Double): String;
 var
     LFormat: TFormatSettings;
@@ -616,6 +699,50 @@ begin
 //    if FormatSettings.DecimalSeparator <> '.' then begin
 //        Result := StringReplace(Result, FormatSettings.DecimalSeparator, '.', []);
 //    end;
+end;
+
+function CalculateHorizonRadius(Altitude, Elevation: Double): Double;
+const
+    Radius: Double = 6378.10;        // radius of earth
+var
+    Angle, Slant: Double;
+begin
+    // Altitude in metres
+    // Elevation in degrees
+    // Result in km
+
+    if Elevation > 0 then begin
+        Altitude := Altitude / 1000.0;      // km
+        Angle := DegToRad(Elevation);
+
+        Slant := Radius * (cos(Pi/2 + Angle) + sqrt(power(cos(Pi/2 + Angle),2) + Altitude * (2 * Radius + Altitude) / power(Radius,2)));
+
+        Result := arccos((power(Radius,2) + power(Radius+Altitude,2) - power(Slant,2)) / (2 * Radius * (Radius + Altitude))) * Radius;
+    end else begin
+        Result := sqrt(12.756 * Altitude);
+    end;
+end;
+
+procedure DoPositionCalculations(PreviousPosition: THABPosition; var NewPosition: THABPosition);
+begin
+    if NewPosition.InUse and PreviousPosition.InUse and (NewPosition.TimeStamp > PreviousPosition.TimeStamp) then begin
+        NewPosition.AscentRate := (NewPosition.Altitude - PreviousPosition.Altitude) /
+                                  ((NewPosition.TimeStamp - PreviousPosition.TimeStamp) * 86400);
+        NewPosition.HaveAscentRate := True;
+        if NewPosition.AscentRate < -2 then begin
+            NewPosition.FlightMode := fmDescending;
+        end else if NewPosition.AscentRate > 2 then begin
+            NewPosition.FlightMode := fmLaunched;
+        end else if abs(NewPosition.AscentRate) < 1 then begin
+            NewPosition.FlightMode := fmLanded;
+//        end else if NewPosition.FlightMode = fmIdle then begin
+//            NewPosition.FlightMode := fmLaunched;
+        end else begin
+            NewPosition.FlightMode := PreviousPosition.FlightMode;
+        end;
+    end else begin
+        NewPosition.HaveAscentRate := False;
+    end;
 end;
 
 end.

@@ -2,7 +2,7 @@ unit Habitat;
 
 interface
 
-uses Classes, SysUtils, SyncObjs, IdBaseComponent, IdComponent, IdTCPConnection, IdTCPClient, IdHTTP, HABTypes, Miscellaneous;
+uses Classes, SysUtils, SyncObjs, IdBaseComponent, IdComponent, IdTCPConnection, IdTCPClient, IdHTTP, Miscellaneous;
 
 type
     THabitatThread = class(TThread)
