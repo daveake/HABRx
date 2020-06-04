@@ -27,9 +27,6 @@ type
     Altitude:       Double;
     MaxAltitude:    Double;
     Satellites:     Integer;
-    Direction:      Double;
-    Elevation:      Double;
-    DirectionValid: Boolean;
     AscentRate:     Double;
     HaveAscentRate: Boolean;
     FlightMode:     TFlightMode;
@@ -56,8 +53,13 @@ type
     ReceivedRemotely:    Boolean;
 
     // Calculated Values
-    Distance:           Double;
-    PayloadDocID:       String;
+    PayloadDocID:           String;
+    Distance:               Double;
+    Direction:              Double;
+    Elevation:              Double;
+    PredictionDistance:     Double;
+    PredictionDirection:    Double;
+    DirectionValid:         Boolean;
 
     // Field Indices
     SatelliteFieldIndex:    Integer;

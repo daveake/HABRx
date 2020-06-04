@@ -2,7 +2,7 @@ unit HABLink;
 
 interface
 
-uses Classes, SysUtils, SyncObjs, IdBaseComponent, IdComponent, IdTCPConnection, IdTCPClient, HABTypes, Miscellaneous;
+uses Classes, SysUtils, SyncObjs, IdBaseComponent, IdComponent, IdTCPConnection, IdTCPClient, Miscellaneous;
 
 type
     THABLinkThread = class(TThread)

@@ -2,7 +2,7 @@ unit GPSSource;
 
 interface
 
-uses Source, SysUtils,
+uses Miscellaneous, Source, SysUtils,
 {$IFDEF MSWINDOWS}
   Windows,
 {$ENDIF}
@@ -23,8 +23,6 @@ type
   end;
 
 implementation
-
-uses Miscellaneous;
 
 function FixPosition(Position: Double): Double;
 var
