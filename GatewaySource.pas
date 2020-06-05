@@ -79,8 +79,12 @@ begin
 
         // Meta data from JSON
         Position.Channel := GetJSONInteger(Line, 'channel');
-        Position.PacketRSSI := GetJSONInteger(Line, 'rssi');
 
+        Position.PacketRSSI := GetJSONInteger(Line, 'rssi');
+        Position.HasPacketRSSI := True;
+
+        Position.FrequencyError := GetJSONFloat(Line, 'ferr');
+        Position.HasFrequency := True;
 
         LookForPredictionInSentence(Position);
 
