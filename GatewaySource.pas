@@ -32,9 +32,11 @@ procedure TGatewaySource.InitialiseDevice;
 begin
     SendSetting('frequency_0', GetSettingString(GroupName, 'Frequency_0', '434.250'));
     SendSetting('mode_0', GetSettingString(GroupName, 'Mode_0', '1'));
+    SendSetting('afc_0', GetSettingString(GroupName, 'AFC_0', '0'));
 
     SendSetting('frequency_1', GetSettingString(GroupName, 'Frequency_1', '434.350'));
-    SendSetting('mode_1', GetSettingString(GroupName, 'Mode_1', '1'));
+    SendSetting('mode_1', GetSettingString(GroupName, 'Mode_1', ''));
+    SendSetting('afc_1', GetSettingString(GroupName, 'AFC_1', '0'));
 end;
 
 
@@ -57,6 +59,7 @@ begin
             Position.Channel := GetJSONInteger(Line, 'index');
             Position.CurrentRSSI := GetJSONInteger(Line, 'rssi');
             Position.HasCurrentRSSI := True;
+            Position.CurrentFrequency := GetJSONFloat(Line, 'freq');
         end;
     end;
 

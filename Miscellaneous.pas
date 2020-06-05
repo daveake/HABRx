@@ -49,6 +49,8 @@ type
     FrequencyError:     Double;
     HasFrequency:       Boolean;
 
+    CurrentFrequency:   Double;
+
     // Meta
     ReceivedRemotely:    Boolean;
 
