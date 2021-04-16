@@ -8,11 +8,13 @@ type
     THABLinkThread = class(TThread)
 private
     CritSection: TCriticalSection;
-    HablinkMessage: String;
+    HablinkMessage, HablinkListener: String;
     StatusCallback: TStatusCallback;
+    ListenerSentOK: Boolean;
     // procedure SyncCallback(SourceID: Integer; Active, OK: Boolean);
   public
-    procedure SendMessage(Msg: String);
+    procedure SetListener(Device, Version, Callsign: String);
+    procedure SendTelemetry(Sentence: String);
     procedure Execute; override;
   published
     constructor Create(Callback: TStatusCallback);
@@ -20,11 +22,22 @@ end;
 
 implementation
 
-procedure THABLinkThread.SendMessage(Msg: String);
+procedure THABLinkThread.SendTelemetry(Sentence: String);
 begin
     CritSection.Enter;
     try
-        HablinkMessage := Msg;
+        HablinkMessage := 'POSITION:SENTENCE=' + Sentence;
+    finally
+        CritSection.Leave;
+    end;
+end;
+
+procedure THABLinkThread.SetListener(Device, Version, Callsign: String);
+begin
+    CritSection.Enter;
+    try
+        HablinkListener := 'LISTENER:TYPE=' + Device + ',VERSION=' + Version + ',CALLSIGN=' + Callsign;
+        ListenerSentOK := False;
     finally
         CritSection.Leave;
     end;
@@ -34,13 +47,15 @@ procedure THABLinkThread.Execute;
 var
     Msg: String;
     AClient: TIdTCPClient;
-    SentOK: Boolean;
+    SendingListener, SentOK: Boolean;
 begin
     AClient := TIdTCPClient.Create;
 
     while not Terminated do begin
         if not AClient.Connected then begin
-            AClient.Host := 'hab.link';
+            ListenerSentOK := False;
+            // AClient.Host := 'hab.link';
+            AClient.Host := '192.168.1.175';
             AClient.Port := 8887;
             AClient.Connect;
         end;
@@ -50,7 +65,13 @@ begin
             Msg := '';
             CritSection.Enter;
             try
-                Msg := HablinkMessage;
+                if (not ListenerSentOK) and (HablinkListener <> '') then begin
+                    Msg := HablinkListener;
+                    SendingListener := True;
+                end else begin
+                    Msg := HablinkMessage;
+                    SendingListener := False;
+                end;
             finally
                 CritSection.Leave;
             end;
@@ -70,7 +91,11 @@ begin
                 if SentOK then begin
                     CritSection.Enter;
                     try
-                        HablinkMessage := '';;
+                        if SendingListener then begin
+                            ListenerSentOK := True;
+                        end else begin
+                            HablinkMessage := '';;
+                        end;
                     finally
                         CritSection.Leave;
                     end;

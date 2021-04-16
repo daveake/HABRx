@@ -10,6 +10,7 @@ type
     { Private declarations }
     function ProcessHabitatResponse(Response: String): Boolean;
     function GetURL(URL: String): String;
+    procedure Delay(ms: Integer);
   protected
     { Protected declarations }
     procedure Execute; override;
@@ -133,6 +134,17 @@ begin
     Result := GotPosition;
 end;
 
+procedure THabitatSource.Delay(ms: Integer);
+var
+    DelaySoFar: Integer;
+begin
+    DelaySoFar := 0;
+
+    while (DelaySoFar < ms) and (not Terminated) do begin
+        Sleep(100);
+        Inc(DelaySoFar, 100);
+    end;
+end;
 
 procedure THabitatSource.Execute;
 var
@@ -174,12 +186,12 @@ begin
                 except
                     SendMessage('Error in ProcessHabitatResponse');
                 end;
-                Sleep(9000);
+                Delay(9000);
             end;
         end else begin
             SendMessage('Habitat Download Disabled');
         end;
-        Sleep(1000);
+        Delay(1000);
     end;
 end;
 

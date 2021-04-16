@@ -17,6 +17,7 @@ type
     IsChase:        Boolean;
     IsSSDV:         Boolean;
     Repeated:       Boolean;
+    IsSonde:        Boolean;
     // ShowMessage:    Boolean;
     Channel:        Integer;
     PayloadID:      String;
@@ -32,6 +33,15 @@ type
     FlightMode:     TFlightMode;
     ReceivedAt:     TDateTime;
     Line:           String;
+
+    Humidity:                   Double;
+    HaveHumidity:               Boolean;
+    ExternalTemperature:        Double;
+    HaveExternalTemperature:    Boolean;
+    Speed:                      Double;
+    HaveSpeed:                  Boolean;
+
+    BatteryVoltage: Double;
 
     ContainsPrediction:  Boolean;
     PredictedLatitude: Double;
@@ -63,8 +73,18 @@ type
     PredictionDirection:    Double;
     DirectionValid:         Boolean;
 
+    // APRS Symbol
+    Symbol:                 Char;
+
     // Field Indices
     SatelliteFieldIndex:    Integer;
+
+    // Transmission (uplink)
+    Transmitting:           Boolean;
+
+    // About device
+    Device:                 String;
+    Version:                String;
   end;
 
 type
@@ -107,6 +127,7 @@ function MyStrToFloat(Value: String): Double;
 function MyFormatFloat(Format: String; Value: Double): String;
 function CalculateHorizonRadius(Altitude, Elevation: Double): Double;
 procedure DoPositionCalculations(PreviousPosition: THABPosition; var NewPosition: THABPosition);
+function EncryptMessage(Password, Msg: String): String;
 
 {$IFDEF ANDROID}
     function MagneticDeclination: Single;
@@ -204,28 +225,34 @@ var
     Position: Integer;
 begin
     // {"class":"POSN","payload":"NOTAFLIGHT","time":"13:01:56","lat":52.01363,"lon":-2.50647,"alt":5507,"rate":7.0}
+    // "callsign": "R3330018"
 
     Position := Pos('"' + FieldName + '":', Line);
 
-    if Copy(Line, Position + Length(FieldName) + 3, 1) = '"' then begin
-        Line := Copy(Line, Position + Length(FieldName) + 4, 999);
-        Position := Pos('"', Line);
-
-        Result := Copy(Line, 1, Position-1);
-//    end else if Line[Position + Length(FieldName) + 4] = '"' then begin
-//        Line := Copy(Line, Position + Length(FieldName) + 5, 999);
-//        Position := Pos('"', Line);
-//
-//        Result := Copy(Line, 1, Position-1);
-    end else begin
+    if Position > 0 then begin
+        // Remove fieldname in quotes and ':'
         Line := Copy(Line, Position + Length(FieldName) + 3, 999);
 
-        Position := Pos(',', Line);
-        if Position = 0 then begin
-            Position := Pos('}', Line);
-        end;
+        // Remove up to first quote
 
-        Result := Copy(Line, 1, Position-1);
+        Position := Pos('"', Line);
+        if (Position > 0) and (Position <= 2) then begin
+            // Remove first quote
+            Line := Copy(Line, Position+1, 999);
+
+            // Find and trim to next quote
+            Position := Pos('"', Line);
+            Result := Copy(Line, 1, Position-1);
+        end else begin
+            Position := Pos(',', Line);
+            if Position = 0 then begin
+                Position := Pos('}', Line);
+            end;
+
+            Result := Copy(Line, 1, Position-1);
+        end;
+    end else begin
+        Result := '';
     end;
 end;
 
@@ -512,7 +539,7 @@ begin
     Temp := GetString(Line, Delimiter);
 
     try
-        Result := StrToFloat(Temp);
+        Result := MyStrToFloat(Temp);
     except
         Result := 0.0;
     end;
@@ -576,21 +603,25 @@ begin
 end;
 
 function MyStrToFloat(Value: String): Double;
-var
-    LFormat: TFormatSettings;
+//var
+//    LFormat: TFormatSettings;
 begin
 //    if FormatSettings.DecimalSeparator <> '.' then begin
 //        Value := StringReplace(Value, '.', FormatSettings.DecimalSeparator, []);
 //    end;
 
-    LFormat := TFormatSettings.Create;          // Note: no need to free this
-    LFormat.DecimalSeparator := '.';
-    LFormat.ThousandSeparator := ',';
+//    LFormat := TFormatSettings.Create;          // Note: no need to free this
+//    LFormat.DecimalSeparator := '.';
+//    LFormat.ThousandSeparator := ',';
 
     try
-        Result := StrToFloat(Value, LFormat);
+        Result := StrToFloat(Value,  TFormatSettings.Invariant);
     except
-        Result := 0;
+        try
+            Result := StrToFloat(Value);
+        except
+            Result := 0;
+        end;
     end;
 end;
 
@@ -691,14 +722,15 @@ begin
 end;
 
 function MyFormatFloat(Format: String; Value: Double): String;
-var
-    LFormat: TFormatSettings;
+//var
+//    LFormat: TFormatSettings;
 begin
-    LFormat := TFormatSettings.Create;          // Note: no need to free this
-    LFormat.DecimalSeparator := '.';
-    LFormat.ThousandSeparator := ',';
-
-    Result := FormatFloat(Format, Value, LFormat);
+//    LFormat := TFormatSettings.Create;          // Note: no need to free this
+//    LFormat.DecimalSeparator := '.';
+//    LFormat.ThousandSeparator := ',';
+//
+//    Result := FormatFloat(Format, Value, LFormat);
+    Result := FormatFloat(Format, Value,  TFormatSettings.Invariant);
 
 //    if FormatSettings.DecimalSeparator <> '.' then begin
 //        Result := StringReplace(Result, FormatSettings.DecimalSeparator, '.', []);
@@ -746,6 +778,22 @@ begin
         end;
     end else begin
         NewPosition.HaveAscentRate := False;
+    end;
+end;
+
+function EncryptMessage(Password, Msg: String): String;
+var
+    i, j: Integer;
+begin
+    Result := Msg;
+
+    if Password <> '' then begin
+        j := Low(Password);
+
+        for i := Low(Msg) to High(Msg) do begin
+            Result[i] := Char((Ord(Result[i]) xor Ord(Password[j])) or $80);
+            j := (j mod Length(Password)) + Low(Password);
+        end;
     end;
 end;
 

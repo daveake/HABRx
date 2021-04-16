@@ -4,7 +4,15 @@ interface
 
 uses Classes, SysUtils, Miscellaneous;
 
+type
+  TUplinkWhen = (uwNone, uwNow, uwSecondsAfterMinute, uwAfterRx);
 
+type
+  TUplinkDetails = record
+    When:       TUplinkWhen;
+    Seconds:    Integer;
+    Msg:        String;
+end;
 
 type
   TSourcePositionCallback = procedure(ID: Integer; Connected: Boolean; Line: String; Position: THABPosition) of object;
@@ -18,8 +26,11 @@ type
     SourceID: Integer;
     GroupName: String;
     SentenceCount: Integer;
-//    Enabled: Boolean;
+    Commands: TStringList;
+    UplinkDetails: TUplinkDetails;
     PositionCallback: TSourcePositionCallback;
+    SourceFilter: String;
+    NeedToReconnect: Boolean;
     procedure LookForPredictionInFields(var Position: THABPosition; Fields: TStringList);
     procedure SendMessage(Line: String);
     procedure LookForPredictionInSentence(var Position: THABPosition);
@@ -27,20 +38,22 @@ type
     procedure SyncCallback(ID: Integer; Connected: Boolean; Line: String; Position: THABPosition);
     function ExtractPositionFromSentence(Line: String; PayloadID: String = ''): THABPosition;
     function ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition; virtual;
+    function GotFilterIfNeeded: Boolean; virtual;
+    procedure AddCommand(Command: String);
   public
     { Public declarations }
-//    procedure Enable; virtual;
-//    procedure Disable; virtual;
+    procedure SendUplink(When: TUplinkWhen; WhenValue, Channel: Integer; Prefix, Msg, Password: String);
     procedure SendSetting(SettingName, SettingValue: String); virtual;
-  public
     constructor Create(ID: Integer; Group: String; Callback: TSourcePositionCallback);
+    function WaitingToSend: Boolean;
+    procedure SetFilter(Filter: String);
   end;
 
 implementation
 
 procedure TSource.Execute;
 begin
-    // Nothing to do here
+    Commands := TStringList.Create;
 end;
 
 constructor TSource.Create(ID: Integer; Group: String; Callback: TSourcePositionCallback);
@@ -103,6 +116,8 @@ begin
     Split(',', Position.Line, Fields);
 
     LookForPredictionInFields(Position, Fields);
+
+    Fields.Free;
 end;
 
 function TSource.ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition;
@@ -123,9 +138,9 @@ var
 begin
     Position := Default(THABPosition);
 
-    Position.Line := Line;
-
     try
+        Position.Line := Line;
+
         if Pos(#10, Line) > 0 then begin
             Line := Copy(Line, 1, Pos(#10, Line)-1);
         end;
@@ -214,12 +229,24 @@ begin
                 // SSDV
                 Position.Line := Line;
                 Position.IsSSDV := True;
-            end else if Pos('{"comment":', Line) = 1 then begin
-                // ChaseMapper sentence
+            end else if Pos('"type": "PAYLOAD_SUMMARY"', Line) > 0 then begin
+                // ChaseMapper sentence / Horus UDP "Payload Summary" messages
+{
+    'type' : 'PAYLOAD_SUMMARY',  # Packet Type
+    'callsign' : callsign,       # Arbitrary text field, usually the payload callsign or serial number.
+    'latitude' : latitude,       # float, Decimal Degrees
+    'longitude' : longitude,     # float, Decimal Degrees
+    'altitude' : altitude,       # int, Metres
+    'speed' : speed,             # int, kph, if provided by the payload, otherwise -1
+    'heading': heading,          # int, degrees 0-359, if provided by the payload, otherwise -1
+    'time' : packet_time,        # Packet timestamp, ideally from the payload itself, as 'HH:MM:SS', in UTC time.
+    'comment' : comment          # An optional comment field. This may not always be provided.
+}
+// {"bt": 65535, "f_centre": 405700000.0, "model": "RS41", "comment": "Radiosonde", "ppm": 215.33333333333334, "temp": -58.9, "fest": [9750.0, 14250.0], "station": "OZ1SKY_AUTO_RX", "time": "18:00:44", "callsign": "R3330018", "longitude": 10.38665, "type": "PAYLOAD_SUMMARY", "sats": 9, "frame": 5171, "humidity": -1.0, "freq": "405.700 MHz", "speed": 44.444483999999996, "batt": 2.7, "latitude": 52.43773, "altitude": 20806.8029, "snr": 10.6, "heading": 101.17816}
+
                 Position.InUse := True;
                 Position.ReceivedAt := Now;
                 Position.PayloadID := GetJSONString(Line, 'callsign');
-                Position.Counter := 1;
                 Temp := GetJSONString(Line, 'time');
                 Position.TimeStamp := EncodeTime(StrToIntDef(Copy(Temp, 1, 2), 0),
                                       StrToIntDef(Copy(Temp, 4, 2), 0),
@@ -231,12 +258,16 @@ begin
                 Position.Longitude := GetJSONFloat(Line, 'longitude');
                 Position.Altitude := Round(GetJSONFloat(Line, 'altitude'));
 
-    //            Position.Frequency := GetJSONFloat(Line, 'freq');
-    //            Position.Speed := GetJSONFloat(Line, 'speed');
+                Position.Satellites := GetJSONInteger(Line, 'sats');
+                Position.BatteryVoltage := GetJSONFloat(Line, 'batt');
+                Position.PayloadID := GetJSONString(Line, 'callsign');
+                Position.CurrentFrequency := GetJSONFloat(Line, 'freq');
+                Position.Speed := GetJSONFloat(Line, 'speed');
+                Position.HaveSpeed := True;
     //            Position.Heading := GetJSONFloat(Line, 'heading');
     //
     //            Position.TempExt := GetJSONFloat(Line, 'temp');
-    //            Position.Model := GetJSONString(Line, 'model');
+                Position.Device := GetJSONString(Line, 'model');
             end else if Pos('GATEWAY:', Line) = 1 then begin
                 // Gateway meta data
                 HostName := GetUDPString(Line, 'HOST');
@@ -245,11 +276,10 @@ begin
                 AddHostNameToIPAddress(HostName, IPAddress);
             end;
         end;
-    except
-        // Failed conversion probably
+    finally
+        Result := Position;
     end;
 
-    Result := Position;
 end;
 
 procedure TSource.SyncCallback(ID: Integer; Connected: Boolean; Line: String; Position: THABPosition);
@@ -276,6 +306,38 @@ begin
     // virtual
 end;
 
+procedure TSource.AddCommand(Command: String);
+begin
+    Commands.Add(Command);
+end;
+
+
+procedure TSource.SendUplink(When: TUplinkWhen; WhenValue, Channel: Integer; Prefix, Msg, Password: String);
+var
+    ChannelText, EncodedMessage: String;
+begin
+    if Channel >= 0 then begin
+        ChannelText := IntToStr(Channel);
+    end else begin
+        ChannelText := '';
+    end;
+
+    if Password <> '' then begin
+        EncodedMessage := EncryptMessage(Password, Msg);
+    end else begin
+        EncodedMessage := Msg;
+    end;
+
+    UplinkDetails.When := When;
+    UplinkDetails.Seconds := WhenValue;
+    UplinkDetails.Msg := Prefix + ChannelText + EncodedMessage;
+
+    if UplinkDetails.When = uwNow then begin
+        AddCommand(UplinkDetails.Msg);
+        UplinkDetails.When := uwNone;
+    end;
+end;
+
 procedure TSource.SendMessage(Line: String);
 var
     Position: THABPosition;
@@ -284,5 +346,22 @@ begin
     Position := Default(THABPosition);
     SyncCallback(SourceID, True, Line, Position);
 end;
+
+function TSource.WaitingToSend: Boolean;
+begin
+    Result := UplinkDetails.When <> uwNone;
+end;
+
+function TSource.GotFilterIfNeeded: Boolean;
+begin
+    Result := True; // Most sources don't need a filter (exception so far is APRS)
+end;
+
+procedure TSource.SetFilter(Filter: String);
+begin
+    SourceFilter := Filter;
+    NeedToReconnect := True;
+end;
+
 
 end.

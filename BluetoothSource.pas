@@ -18,8 +18,7 @@ type
   TBluetoothSource = class(TSource)
   private
     { Private declarations }
-    Commands: TStringList;
-    procedure AddCommand(Command: String);
+    CurrentFrequency: Double;
     procedure InitialiseDevice;
   protected
     { Protected declarations }
@@ -89,7 +88,7 @@ var
 {$ENDIF}
 begin
 {$IF Defined(MSWINDOWS) or Defined(ANDROID)}
-    Commands := TStringList.Create;
+    inherited;
 
     Bluetooth1 := TBluetooth.Create(nil);
     Bluetooth1.Enabled := True;
@@ -133,7 +132,20 @@ begin
                         InitialiseDevice;
                         Line := '';
 
-                        while (not Terminated) and (not GetGroupChangedFlag(GroupName)) and Connected and (DeviceName = GetSettingString(GroupName, 'Device', '')) do begin
+                        // while (not Terminated) and (not GetGroupChangedFlag(GroupName)) and Connected and (DeviceName = GetSettingString(GroupName, 'Device', '')) do begin
+                        while (not Terminated) and Connected and (DeviceName = GetSettingString(GroupName, 'Device', '')) do begin
+                            if GetGroupChangedFlag(GroupName) then begin
+                                InitialiseDevice;
+                                SetGroupChangedFlag(GroupName, False);
+                            end;
+
+                            if UplinkDetails.When = uwSecondsAfterMinute then begin
+                                if (Trunc(Now * 86400) mod 60) = UplinkDetails.Seconds then begin
+                                    AddCommand(UplinkDetails.Msg);
+                                    UplinkDetails.When := uwNone;
+                                end;
+                            end;
+
                             if Commands.Count > 0 then begin
                                 try
                                     SendMessage('Sending ' + Commands[0]);
@@ -231,6 +243,15 @@ begin
         end else if Command = 'MESSAGE' then begin
             Position := inherited;
         end;
+
+        Position.CurrentFrequency := CurrentFrequency;
+
+        if Position.InUse then begin
+            if UplinkDetails.When = uwAfterRx then begin
+                AddCommand(UplinkDetails.Msg);
+                UplinkDetails.When := uwNone;
+            end;
+        end;
     finally
         Result := Position;
     end;
@@ -240,12 +261,10 @@ procedure TBluetoothSource.SendSetting(SettingName, SettingValue: String);
 begin
     if SettingValue <> '' then begin
         AddCommand('~' + SettingName + SettingValue);
+        if SettingName = 'F' then begin
+            CurrentFrequency := MyStrToFloat(SettingValue);
+        end;
     end;
-end;
-
-procedure TBluetoothSource.AddCommand(Command: String);
-begin
-    Commands.Add(Command);
 end;
 
 {$ENDIF}

@@ -46,7 +46,7 @@ var
     Satellites: Integer;
     Speed: Double;
 begin
-    FillChar(Position, SizeOf(Position), 0);
+    Position := default(THABPosition);
 
     try
         if Copy(Line, 1, 2) = '$G' then begin
@@ -127,13 +127,8 @@ begin
                               0);
 
          if hCommFile = INVALID_HANDLE_VALUE then begin
-            Position.IsChase := True;
-            Position.InUse := True;
-            Position.TimeStamp := Now;
-            Position.Latitude := 51.95026;
-            Position.Longitude := -2.54443;
-            Position.Altitude := 145;
-            SyncCallback(SourceID, True, string(Line), Position);
+            FillChar(Position, SizeOf(Position), 0);
+            SyncCallback(SourceID, False, 'Cannot open serial port ' + CommPort, Position);
             Sleep(1000);
          end else begin
             // Set baud rate etc

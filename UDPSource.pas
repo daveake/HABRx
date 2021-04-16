@@ -46,43 +46,45 @@ begin
 {$ENDIF}
 
     while not Terminated do begin
-        SetGroupChangedFlag(GroupName, False);
-        PortList := GetSettingString(GroupName, 'Port', '');
+        if GetSettingBoolean(GroupName, 'Enabled', True) then begin
+            SetGroupChangedFlag(GroupName, False);
+            PortList := GetSettingString(GroupName, 'Port', '');
 
-        if PortList = '' then begin
-            SyncCallback(SourceID, True, 'No ports specified', Position);
-        end else begin
-            // Create client
-            UDPServer := TIdUDPServer.Create;
-            TempPortList := PortList;
+            if PortList = '' then begin
+                SyncCallback(SourceID, True, 'No ports specified', Position);
+            end else begin
+                // Create client
+                UDPServer := TIdUDPServer.Create;
+                TempPortList := PortList;
 
-            while TempPortList <> '' do begin
-                PortNumber := StrToIntDef(GetString(TempPortList, ','), 0);
-                if PortNumber > 0 then begin
-                    with UDPServer.Bindings.Add do begin
-                        IP := '0.0.0.0';
-                        Port := PortNumber;
+                while TempPortList <> '' do begin
+                    PortNumber := StrToIntDef(GetString(TempPortList, ','), 0);
+                    if PortNumber > 0 then begin
+                        with UDPServer.Bindings.Add do begin
+                            IP := '0.0.0.0';
+                            Port := PortNumber;
+                        end;
                     end;
                 end;
-            end;
 
-            SyncCallback(SourceID, True, 'Listening to ' + PortList + ' ...', Position);
-            UDPServer.ReuseSocket := rsTrue;
-            UDPServer.ThreadedEvent := True;
-            UDPServer.OnUDPRead := UDPRead;
+                SyncCallback(SourceID, True, 'Listening to ' + PortList + ' ...', Position);
+                UDPServer.ReuseSocket := rsTrue;
+                UDPServer.ThreadedEvent := True;
+                UDPServer.OnUDPRead := UDPRead;
 
-            try
-                UDPServer.Active := True;
+                try
+                    UDPServer.Active := True;
 
-                while (not Terminated) and (not GetGroupChangedFlag(GroupName)) do begin
-                    Sleep(100);
+                    while (not Terminated) and (not GetGroupChangedFlag(GroupName)) do begin
+                        Sleep(100);
+                    end;
+                except
+                    SyncCallback(SourceID, True, 'Failed to listen to ' + PortList + ' ...', Position);
                 end;
-            except
-                SyncCallback(SourceID, True, 'Failed to listen to ' + PortList + ' ...', Position);
-            end;
 
-            UDPServer.Active := False;
-            UDPServer.Free;
+                UDPServer.Active := False;
+                UDPServer.Free;
+            end;
         end;
 
         Sleep(1000);

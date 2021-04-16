@@ -16,7 +16,7 @@ type
   TSerialSource = class(TSource)
   private
     { Private declarations }
-    Commands: TStringList;
+    CurrentFrequency: Double;
 {$IFDEF ANDROID}
     UsbDevices: TArray<JUsbDevice>;
     UsbSerial: TUsbSerial;
@@ -28,7 +28,6 @@ type
     procedure OnDeviceDetached(Device: JUsbDevice);
     procedure OnReceivedData(Data: TJavaArray<Byte>);
 {$ENDIF}
-    procedure AddCommand(Command: String);
     procedure InitialiseDevice;
   protected
     { Protected declarations }
@@ -44,6 +43,11 @@ implementation
 
 procedure TSerialSource.InitialiseDevice;
 begin
+    // Request device information
+    AddCommand('~D');
+    AddCommand('~V');
+
+    // LoRa settings
     SendSetting('F', GetSettingString(GroupName, 'Frequency', '434.250'));
     SendSetting('M', GetSettingString(GroupName, 'Mode', '1'));
 end;
@@ -74,12 +78,12 @@ var
     TxBuffer: Array[0..16] of Ansichar;
     i, j: Integer;
 begin
-    Commands := TStringList.Create;
+    inherited;
 
     while not Terminated do begin
         if GetSettingBoolean(GroupName, 'Enabled', True) then begin
             CommPort := FixSerialPortName(GetSettingString(GroupName, 'Port', ''));
-            SetGroupChangedFlag(GroupName, False);
+            // SetGroupChangedFlag(GroupName, False);
 
             // Open serial port as a file
             hCommFile := CreateFile(PChar(CommPort),
@@ -91,6 +95,7 @@ begin
                                   0);
 
              if hCommFile = INVALID_HANDLE_VALUE then begin
+                Position := Default(THABPosition);
                 SyncCallback(SourceID, False, 'Cannot open serial port ' + CommPort, Position);
                 Sleep(1000);
              end else begin
@@ -112,13 +117,15 @@ begin
 
                     // FillChar(Position, SizeOf(Position), 0);
                     Position := Default(THABPosition);
-                    SyncCallback(SourceID, True, '', Position);
-
+                    // SyncCallback(SourceID, True, '', Position);
                     SyncCallback(SourceID, True, 'Connected to ' + CommPort, Position);
 
                     InitialiseDevice;
 
-                    while (not Terminated) and (not GetGroupChangedFlag(GroupName)) do begin
+                    // while (not Terminated) and (not GetGroupChangedFlag(GroupName)) do begin
+                    while (not Terminated) and
+                          (CommPort = FixSerialPortName(GetSettingString(GroupName, 'Port', ''))) do begin
+
                         if ReadFile(hCommFile, Buffer, sizeof(Buffer), NumberOfBytesRead, nil) then begin
                             for i := 0 to NumberOfBytesRead - 1 do begin
                                 if Buffer[i] = #13 then begin
@@ -138,6 +145,19 @@ begin
                                 end;
                             end;
                         end;
+
+                        if GetGroupChangedFlag(GroupName) then begin
+                            InitialiseDevice;
+                            SetGroupChangedFlag(GroupName, False);
+                        end;
+
+                        if UplinkDetails.When = uwSecondsAfterMinute then begin
+                            if (Trunc(Now * 86400) mod 60) = UplinkDetails.Seconds then begin
+                                AddCommand(UplinkDetails.Msg);
+                                UplinkDetails.When := uwNone;
+                            end;
+                        end;
+
                         if Commands.Count > 0 then begin
                             Temp := Commands[0] + #13;
                             for j := 1 to Length(Temp) do begin
@@ -168,7 +188,7 @@ var
     PermissionRequested: Boolean;
     Position: THABPosition;
 begin
-    Commands := TStringList.Create;
+    inherited;
 
     UsbSerial := TUsbSerial.Create;
     UsbSerial.OnDeviceAttached := OnDeviceAttached;
@@ -182,6 +202,13 @@ begin
     while not Terminated do begin
         if GetSettingBoolean(GroupName, 'Enabled', True) then begin
             if UsbSerial.Opened then begin
+                if UplinkDetails.When = uwSecondsAfterMinute then begin
+                    if (Trunc(Now) mod 60) = UplinkDetails.Seconds then begin
+                        AddCommand(UplinkDetails.Msg);
+                        UplinkDetails.When := uwNone;
+                    end;
+                end;
+
                 if Commands.Count > 0 then begin
                     UsbSerial.Write(TEncoding.UTF8.GetBytes(Commands[0] + #13), 0);
                     Commands.Delete(0);
@@ -344,52 +371,70 @@ var
     Command: String;
     Position: THABPosition;
 begin
-    FillChar(Position, SizeOf(Position), 0);
-    // Position.SignalValues := TSignalValues.Create;
+    Position := Default(THABPosition);
 
-    if Copy(Line, 1, 2) = '$$' then begin
-        Line := 'MESSAGE=' + Line;
+    try
+        // Position.SignalValues := TSignalValues.Create;
+
+        if Copy(Line, 1, 2) = '$$' then begin
+            Line := 'MESSAGE=' + Line;
+        end;
+
+        Command := UpperCase(GetString(Line, '='));
+
+        if Command = 'CURRENTRSSI' then begin
+            Position.CurrentRSSI := StrToIntDef(Line, 0);
+            Position.HasCurrentRSSI := True;
+            // SyncCallback(SourceID, True, '', Position);
+        end else if Command = 'HEX' then begin
+            // SSDV ?
+            if (Copy(Line,1,2) = '66') or (Copy(Line,1,2) = '67') then begin
+                // Looks like SSDV
+                Line := '55' + Line;
+                Position := inherited;
+            end;
+        end else if Command = 'FREQERR' then begin
+            Position.FrequencyError := MyStrToFloat(Line);
+            Position.HasFrequency := True;
+            // SyncCallback(SourceID, True, '', Position);
+        end else if Command = 'PACKETRSSI' then begin
+            // Position.SignalValues.Add('PacketRSSI', StrToIntDef(Line, 0));
+            Position.PacketRSSI := StrToIntDef(Line, 0);
+            Position.HasPacketRSSI := True;
+            // SyncCallback(SourceID, True, '', Position);
+        end else if Command = 'PACKETSNR' then begin
+            // Position.SignalValues.Add('PacketSNR', StrToIntDef(Line, 0));
+            // SyncCallback(SourceID, True, '', Position);
+        end else if Command = 'TX' then begin
+            Position.Transmitting := Pos('N', UpperCase(Line)) > 0;
+        end else if Command = 'DEVICE' then begin
+            Position.Device := Line;
+        end else if Command = 'VERSION' then begin
+            Position.Version := Line;
+        end else if Command = 'MESSAGE' then begin
+            Position := inherited;
+        end;
+
+        if Position.InUse then begin
+            if UplinkDetails.When = uwAfterRx then begin
+                AddCommand(UplinkDetails.Msg);
+                UplinkDetails.When := uwNone;
+            end;
+        end;
+    finally
+        Position.CurrentFrequency := CurrentFrequency;
+        Result := Position;
     end;
-
-    Command := UpperCase(GetString(Line, '='));
-
-    if Command = 'CURRENTRSSI' then begin
-        Position.CurrentRSSI := StrToIntDef(Line, 0);
-        Position.HasCurrentRSSI := True;
-        SyncCallback(SourceID, True, '', Position);
-    end else if Command = 'HEX' then begin
-        // SSDV
-        Line := '55' + Line;
-        Position := inherited;
-    end else if Command = 'FREQERR' then begin
-        Position.FrequencyError := MyStrToFloat(Line);
-        Position.HasFrequency := True;
-        SyncCallback(SourceID, True, '', Position);
-    end else if Command = 'PACKETRSSI' then begin
-        // Position.SignalValues.Add('PacketRSSI', StrToIntDef(Line, 0));
-        Position.PacketRSSI := StrToIntDef(Line, 0);
-        Position.HasPacketRSSI := True;
-        SyncCallback(SourceID, True, '', Position);
-    end else if Command = 'PACKETSNR' then begin
-        // Position.SignalValues.Add('PacketSNR', StrToIntDef(Line, 0));
-        SyncCallback(SourceID, True, '', Position);
-    end else if Command = 'MESSAGE' then begin
-        Position := inherited;
-    end;
-
-    Result := Position;
 end;
 
 procedure TSerialSource.SendSetting(SettingName, SettingValue: String);
 begin
     if SettingValue <> '' then begin
         AddCommand('~' + SettingName + SettingValue);
+        if SettingName = 'F' then begin
+            CurrentFrequency := MyStrToFloat(SettingValue);
+        end;
     end;
-end;
-
-procedure TSerialSource.AddCommand(Command: String);
-begin
-    Commands.Add(Command);
 end;
 
 end.
