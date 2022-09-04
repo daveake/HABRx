@@ -48,6 +48,9 @@ type
     PredictedLongitude: Double;
 
     // Packet signal information from the receiver
+    SNR:                Double;
+    HasSNR:             Boolean;
+
     PacketRSSI:         Integer;
     HasPacketRSSI:      Boolean;
 
@@ -62,7 +65,8 @@ type
     CurrentFrequency:   Double;
 
     // Meta
-    ReceivedRemotely:    Boolean;
+    ReceivedRemotely:   Boolean;
+    Modulation:         String;
 
     // Calculated Values
     PayloadDocID:           String;
@@ -72,6 +76,7 @@ type
     PredictionDistance:     Double;
     PredictionDirection:    Double;
     DirectionValid:         Boolean;
+    UsingCompass:           Boolean;
 
     // APRS Symbol
     Symbol:                 Char;
@@ -85,6 +90,24 @@ type
     // About device
     Device:                 String;
     Version:                String;
+
+    // SSDV Info
+    SSDVFileNumber:         Integer;
+    SSDVPacketNumber:       Integer;
+
+    // Calling Mode
+    CallingModeMessage:     Boolean;
+    CallingModeFrequency:   Double;
+    CallingModeImplicit:    Integer;
+    CallingModeError:       Integer;
+    CallingModeBandwidth:   Integer;
+    CallingModeSpreading:   Integer;
+    CallingModeOptimize:    Integer;
+
+    // Externally maintained
+    TelemetryCount:         Integer;
+    SSDVCount:              Integer;
+    DescentTime:            TDateTime;
   end;
 
 type
@@ -108,15 +131,17 @@ type
 function CalculateDistance(HABLatitude, HabLongitude, CarLatitude, CarLongitude: Double): Double;
 function CalculateDirection(HABLatitude, HabLongitude, CarLatitude, CarLongitude: Double): Double;
 function CalculateElevation(lat1, lon1, alt1, lat2, lon2, alt2: Double): Double;
-function GetJSONString(Line: String; FieldName: String): String;
-function GetJSONInteger(Line: String; FieldName: String): LongInt;
-function GetJSONFloat(Line: String; FieldName: String): Double;
+function GetJSONString(Line: String; FieldName: String; StringChar: String = '"'): String;
+function GetJSONInteger(Line: String; FieldName: String; StringChar: String = '"'): LongInt;
+function GetJSONFloat(Line: String; FieldName: String; StringChar: String = '"'): Double;
 function GetUDPString(Line: String; FieldName: String): String;
 procedure InsertDate(var TimeStamp: TDateTime);
 function CalculateDescentTime(Altitude, DescentRate, Land: Double): Double;
 function DataFolder: String;
 function ImageFolder: String;
 function GetString(var Line: String; Delimiter: String=','): String;
+function GetString2(var Line: String; Delimiters: String=','): String;
+function GetTimeFromString(Temp: String): TDateTime;
 function GetTime(var Line: String; Delimiter: String = ','): TDateTime;
 function GetInteger(var Line: String; Delimiter: String = ','): Integer;
 function GetFloat(var Line: String; Delimiter: String = ','): Double;
@@ -220,14 +245,14 @@ begin
     end;
 end;
 
-function GetJSONString(Line: String; FieldName: String): String;
+function GetJSONString(Line: String; FieldName: String; StringChar: String = '"'): String;
 var
     Position: Integer;
 begin
     // {"class":"POSN","payload":"NOTAFLIGHT","time":"13:01:56","lat":52.01363,"lon":-2.50647,"alt":5507,"rate":7.0}
     // "callsign": "R3330018"
 
-    Position := Pos('"' + FieldName + '":', Line);
+    Position := Pos(StringChar + FieldName + StringChar + ':', Line);
 
     if Position > 0 then begin
         // Remove fieldname in quotes and ':'
@@ -235,13 +260,13 @@ begin
 
         // Remove up to first quote
 
-        Position := Pos('"', Line);
+        Position := Pos(StringChar, Line);
         if (Position > 0) and (Position <= 2) then begin
             // Remove first quote
             Line := Copy(Line, Position+1, 999);
 
             // Find and trim to next quote
-            Position := Pos('"', Line);
+            Position := Pos(StringChar, Line);
             Result := Copy(Line, 1, Position-1);
         end else begin
             Position := Pos(',', Line);
@@ -256,13 +281,13 @@ begin
     end;
 end;
 
-function GetJSONFloat(Line: String; FieldName: String): Double;
+function GetJSONFloat(Line: String; FieldName: String; StringChar: String = '"'): Double;
 var
     Position: Integer;
 begin
     // {"class":"POSN","payload":"NOTAFLIGHT","time":"13:01:56","lat":52.01363,"lon":-2.50647,"alt":5507,"rate":7.0}
 
-    Position := Pos('"' + FieldName + '":', Line);
+    Position := Pos(StringChar + FieldName + StringChar + ':', Line);
 
     if Position > 0 then begin
         Line := Copy(Line, Position + Length(FieldName) + 3, 999);
@@ -277,7 +302,7 @@ begin
 
         Line := Copy(Line, 1, Position-1);
 
-        if Copy(Line, 1, 1) = '"' then begin
+        if Copy(Line, 1, 1) = StringChar then begin
             Line := Copy(Line,2, Length(Line)-2);
         end;
 
@@ -291,13 +316,13 @@ begin
     end;
 end;
 
-function GetJSONInteger(Line: String; FieldName: String): LongInt;
+function GetJSONInteger(Line: String; FieldName: String; StringChar: String = '"'): LongInt;
 var
     Position: Integer;
 begin
     // {"class":"POSN","payload":"NOTAFLIGHT","time":"13:01:56","lat":52.01363,"lon":-2.50647,"alt":5507,"rate":7.0}
 
-    Position := Pos('"' + FieldName + '":', Line);
+    Position := Pos(StringChar + FieldName + StringChar + ':', Line);
 
     if Position > 0 then begin
         Line := Copy(Line, Position + Length(FieldName) + 3, 999);
@@ -309,7 +334,7 @@ begin
 
         Line := Copy(Line, 1, Position-1);
 
-        if Copy(Line, 1, 1) = '"' then begin
+        if Copy(Line, 1, 1) = StringChar then begin
             Line := Copy(Line,2, Length(Line)-2);
         end;
 
@@ -523,6 +548,37 @@ begin
     end;
 end;
 
+function FindFirstCharacterInString(Line: String; Delimiters: String=','): Integer;
+var
+    i, j: Integer;
+begin
+    for i := 1 to Length(Line) do begin
+        for j := 1 to Length(Delimiters) do begin
+            if Copy(Line,i,1) = Copy(Delimiters,j,1) then begin
+                Result := i;
+                Exit;
+            end;
+        end;
+    end;
+
+    Result := 0;
+end;
+
+function GetString2(var Line: String; Delimiters: String=','): String;
+var
+    Position: Integer;
+begin
+    Position := FindFirstCharacterInString(Line, Delimiters);
+
+    if Position > 0 then begin
+        Result := Copy(Line, 1, Position);
+        Line := Copy(Line, Position+1, Length(Line));
+    end else begin
+        Result := Line;
+        Line := '';
+    end;
+end;
+
 function GetInteger(var Line: String; Delimiter: String = ','): Integer;
 var
     Temp: String;
@@ -545,12 +601,8 @@ begin
     end;
 end;
 
-function GetTime(var Line: String; Delimiter: String = ','): TDateTime;
-var
-    Temp: String;
+function GetTimeFromString(Temp: String): TDateTime;
 begin
-    Temp := GetString(Line, Delimiter);
-
     try
         if Pos(':', Temp) > 0 then begin
             Result := EncodeTime(StrToIntDef(Copy(Temp, 1, 2), 0),
@@ -566,6 +618,16 @@ begin
     except
         Result := 0;
     end;
+end;
+
+
+function GetTime(var Line: String; Delimiter: String = ','): TDateTime;
+var
+    Temp: String;
+begin
+    Temp := GetString(Line, Delimiter);
+
+    Result := GetTimeFromString(Temp);
 end;
 
 procedure AddHostNameToIPAddress(HostName, IPAddress: String);
@@ -798,4 +860,5 @@ begin
 end;
 
 end.
+
 

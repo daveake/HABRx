@@ -100,27 +100,37 @@ begin
         if DeviceName = '' then begin
             SendMessage('No Device Selected');
         end else begin
+            SendMessage('Connecting to ' + DeviceName + ' ...');
+
             // Get device
             DeviceIndex := SelectDevice(Bluetooth1, DeviceName);
-            SendMessage('Connecting to ' + DeviceName + ' ...');
 
             if DeviceIndex < 0 then begin
                 SendMessage('Cannot Find Device');
             end else begin
+                SendMessage('Getting device services');
+
+                LDevice := nil;
+                LServices := nil;
+
                 LDevice := Bluetooth1.LastPairedDevices[DeviceIndex];
 
                 LServices := LDevice.GetServices;
+
                 ServiceIndex := FindService(LServices);
 
                 if ServiceIndex < 0 then begin
-                    SendMessage('No Serial Service');
+                    SendMessage('Device has no serial service');
                 end else begin
+                    SendMessage('Device has serial service');
+
                     Guid := LServices[ServiceIndex].UUID;
 
                     // Now open socket
                     FSocket := LDevice.CreateClientSocket(Guid, True);
 
                     try
+                        SendMessage('Attempting Connection');
                         FSocket.Connect;
                         Connected := True;
                         SendMessage('Connected To Device');
@@ -191,13 +201,15 @@ begin
                         FSocket.Free;
                     end;
                 end;
-                LServices.Free;
-                LDevice.Free;
+
+//                if LServices <> nil then LServices.Free;
+//                if LDevice <> nil then LDevice.Free;
             end;
         end;
 
-        Sleep(1000);
+        Sleep(5000);
     end;
+
 {$ENDIF}
 end;
 
@@ -206,19 +218,19 @@ var
     Command: String;
     Position: THABPosition;
 begin
-    try
-        FillChar(Position, SizeOf(Position), 0);
-    Position.Channel := 112;
-        // Position.SignalValues := TSignalValues.Create;
+    // FillChar(Position, SizeOf(Position), 0);
+    Position := default(THABPosition);
 
+    try
         if Copy(Line, 1, 2) = '$$' then begin
-    Position.Channel := 113;
             Line := 'MESSAGE=' + Line;
+        end else if Copy(Line, 2, 1) = '/' then begin
+            if Pos(Copy(Line,1,1), '0123') > 0 then begin
+                Line := 'MESSAGE=' + Line;
+            end;
         end;
-    Position.Channel := 114;
 
         Command := UpperCase(GetString(Line, '='));
-    Position.Channel := 115;
 
         if Command = 'CURRENTRSSI' then begin
             Position.CurrentRSSI := StrToIntDef(Line, 0);
@@ -233,12 +245,10 @@ begin
             Position.HasFrequency := True;
             SyncCallback(SourceID, True, '', Position);
         end else if Command = 'PACKETRSSI' then begin
-            // Position.SignalValues.Add('PacketRSSI', StrToIntDef(Line, 0));
             Position.PacketRSSI := StrToIntDef(Line, 0);
             Position.HasPacketRSSI := True;
             SyncCallback(SourceID, True, '', Position);
         end else if Command = 'PACKETSNR' then begin
-            // Position.SignalValues.Add('PacketSNR', StrToIntDef(Line, 0));
             SyncCallback(SourceID, True, '', Position);
         end else if Command = 'MESSAGE' then begin
             Position := inherited;

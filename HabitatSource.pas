@@ -151,9 +151,10 @@ var
     List, WhiteList, SearchList, PayloadID, Response, Request: String;
 begin
     while not Terminated do begin
-        if GetSettingBoolean(GroupName, 'Enable', False) then begin
+        if GetSettingBoolean(GroupName, 'Enabled', False) then begin
             // Get white list
-            WhiteList := GetSettingString('Habitat', 'WhiteList', '');
+            // WhiteList := GetSettingString('Habitat', 'WhiteList', '');
+            WhiteList := GetSettingString(GroupName, 'WhiteList', '');
 
             // Get current payloads
             List := PayloadList;
@@ -177,7 +178,7 @@ begin
             if List = '' then begin
                 SendMessage('No payloads yet');
             end else begin
-                Request := 'http://spacenear.us/tracker/datanew.php?mode=Position&type=positions&format=json&max_positions=10&vehicles=' + List;
+                Request := 'http://legacy-snus.habhub.org/tracker/datanew.php?mode=Position&type=positions&format=json&max_positions=10&vehicles=' + List;
                 Response := GetURL(Request);
                 try
                     if not ProcessHabitatResponse(Response) then begin

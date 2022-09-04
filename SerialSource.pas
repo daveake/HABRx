@@ -17,6 +17,7 @@ type
   private
     { Private declarations }
     CurrentFrequency: Double;
+    LoRaMode: Integer;
 {$IFDEF ANDROID}
     UsbDevices: TArray<JUsbDevice>;
     UsbSerial: TUsbSerial;
@@ -101,7 +102,15 @@ begin
              end else begin
                 // Set baud rate etc
                 GetCommState(hCommFile, DCB);
+//                if True then begin
+//                    // MySondy
+//                    DCB.BaudRate := CBR_9600;
+//                end else begin
+//                    // LoRaGo
+//                    DCB.BaudRate := CBR_57600;
+//                end;
                 DCB.BaudRate := CBR_57600;
+
                 DCB.ByteSize := 8;
                 DCB.StopBits := ONESTOPBIT;
                 DCB.Parity := NOPARITY;
@@ -367,6 +376,15 @@ end;
 {$ENDIF}
 
 function TSerialSource.ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition;
+const
+    SNR:                Double = 0;
+    HasSNR:             Boolean = False;
+
+    PacketRSSI:         Integer = 0;
+    HasPacketRSSI:      Boolean = False;
+
+    FrequencyError:     Double = 0;
+    HasFrequency:       Boolean = False;
 var
     Command: String;
     Position: THABPosition;
@@ -378,6 +396,12 @@ begin
 
         if Copy(Line, 1, 2) = '$$' then begin
             Line := 'MESSAGE=' + Line;
+        end else if Copy(Line, 1, 2) = '^^' then begin
+            Line := 'MESSAGE=' + Line;
+        end else if Copy(Line, 2, 1) = '/' then begin
+            if Pos(Copy(Line,1,1), '0123') > 0 then begin
+                Line := 'MESSAGE=' + Line;
+            end;
         end;
 
         Command := UpperCase(GetString(Line, '='));
@@ -394,15 +418,22 @@ begin
                 Position := inherited;
             end;
         end else if Command = 'FREQERR' then begin
-            Position.FrequencyError := MyStrToFloat(Line);
-            Position.HasFrequency := True;
+            FrequencyError := MyStrToFloat(Line);
+            HasFrequency := True;
             // SyncCallback(SourceID, True, '', Position);
         end else if Command = 'PACKETRSSI' then begin
             // Position.SignalValues.Add('PacketRSSI', StrToIntDef(Line, 0));
-            Position.PacketRSSI := StrToIntDef(Line, 0);
-            Position.HasPacketRSSI := True;
+            PacketRSSI := StrToIntDef(Line, 0);
+            HasPacketRSSI := True;
             // SyncCallback(SourceID, True, '', Position);
         end else if Command = 'PACKETSNR' then begin
+            SNR := StrToIntDef(Line, 0);
+            HasSNR := True;
+
+            Position.SNR := SNR;
+            Position.HasSNR := True;
+            SyncCallback(SourceID, True, '', Position);
+
             // Position.SignalValues.Add('PacketSNR', StrToIntDef(Line, 0));
             // SyncCallback(SourceID, True, '', Position);
         end else if Command = 'TX' then begin
@@ -413,6 +444,15 @@ begin
             Position.Version := Line;
         end else if Command = 'MESSAGE' then begin
             Position := inherited;
+
+            Position.Modulation := 'LoRa (Mode ' + IntToStr(LoRaMode) + ')';
+            Position.SNR := SNR;
+            Position.HasSNR := HasSNR;
+            HasSNR := False;
+
+            Position.PacketRSSI := PacketRSSI;
+            Position.HasPacketRSSI := HasPacketRSSI;
+            HasPacketRSSI := False;
         end;
 
         if Position.InUse then begin
@@ -433,6 +473,10 @@ begin
         AddCommand('~' + SettingName + SettingValue);
         if SettingName = 'F' then begin
             CurrentFrequency := MyStrToFloat(SettingValue);
+        end;
+
+        if SettingName = 'M' then begin
+            LoRaMode := StrToIntDef(SettingValue, 1);
         end;
     end;
 end;

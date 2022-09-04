@@ -8,13 +8,16 @@ type
     THABLinkThread = class(TThread)
 private
     CritSection: TCriticalSection;
-    HablinkMessage, HablinkListener: String;
+    HablinkMessage, HablinkListener, ChasePosition: String;
     StatusCallback: TStatusCallback;
     ListenerSentOK: Boolean;
-    // procedure SyncCallback(SourceID: Integer; Active, OK: Boolean);
+    procedure SyncCallback(SourceID: Integer; Active, OK: Boolean);
+    procedure ClientConnected(Sender: TObject);
+    procedure ClientDisconnected(Sender: TObject);
   public
     procedure SetListener(Device, Version, Callsign: String);
     procedure SendTelemetry(Sentence: String);
+    procedure SendChasePosition(Position: String);
     procedure Execute; override;
   published
     constructor Create(Callback: TStatusCallback);
@@ -43,40 +46,68 @@ begin
     end;
 end;
 
+procedure THABLinkThread.SendChasePosition(Position: String);
+begin
+    CritSection.Enter;
+    try
+        ChasePosition := 'CHASE:POSITION=' + Position;
+    finally
+        CritSection.Leave;
+    end;
+end;
+
+
 procedure THABLinkThread.Execute;
 var
     Msg: String;
     AClient: TIdTCPClient;
-    SendingListener, SentOK: Boolean;
+    SendingListener, SendingChase, SentOK: Boolean;
 begin
     AClient := TIdTCPClient.Create;
+    AClient.OnConnected := ClientConnected;
+    AClient.OnDisconnected := ClientDisconnected;
 
     while not Terminated do begin
         if not AClient.Connected then begin
             ListenerSentOK := False;
             // AClient.Host := 'hab.link';
-            AClient.Host := '192.168.1.175';
+            AClient.Host := 'hab.link';
             AClient.Port := 8887;
-            AClient.Connect;
+            try
+                AClient.Connect;
+                SyncCallback(0, False, True);
+            except
+                SyncCallback(0, False, False);
+            end;
         end;
 
         if AClient.Connected then begin
             // Telemetry
             Msg := '';
+            SendingListener := False;
+            SendingChase := False;
             CritSection.Enter;
             try
                 if (not ListenerSentOK) and (HablinkListener <> '') then begin
                     Msg := HablinkListener;
                     SendingListener := True;
+                end else if ChasePosition <> '' then begin
+                    Msg := ChasePosition;
+                    SendingChase := True;
                 end else begin
                     Msg := HablinkMessage;
-                    SendingListener := False;
                 end;
             finally
                 CritSection.Leave;
             end;
 
-            if Msg <> '' then begin
+            if Msg = '' then begin
+//                try
+//                    AClient.IOHandler.ReadLn;
+//                except
+//                    AClient.Disconnect;
+//                end;
+            end else begin
                 SentOK := False;
 
                 try
@@ -86,6 +117,11 @@ begin
                     SentOK := True;
                 except
                     SentOK := False;
+                    AClient.Disconnect;
+                end;
+
+                if not SendingListener then begin
+                    SyncCallback(0, True, SentOK);
                 end;
 
                 if SentOK then begin
@@ -93,8 +129,10 @@ begin
                     try
                         if SendingListener then begin
                             ListenerSentOK := True;
+                        end else if SendingChase then begin
+                            ChasePosition := '';
                         end else begin
-                            HablinkMessage := '';;
+                            HablinkMessage := '';
                         end;
                     finally
                         CritSection.Leave;
@@ -107,6 +145,17 @@ begin
     end;
 end;
 
+procedure THABLinkThread.ClientConnected(Sender: TObject);
+begin
+    SyncCallback(0, False, True);
+end;
+
+procedure THABLinkThread.ClientDisconnected(Sender: TObject);
+begin
+    SyncCallback(0, False, False);
+end;
+
+
 constructor THABLinkThread.Create(Callback: TStatusCallback);
 begin
     CritSection := TCriticalSection.Create;
@@ -116,13 +165,13 @@ begin
     inherited Create(False);
 end;
 
-//procedure THABLinkThread.SyncCallback(SourceID: Integer; Active, OK: Boolean);
-//begin
-//    Synchronize(
-//        procedure begin
-//            StatusCallback(SourceID, Active, OK);
-//        end
-//    );
-//end;
+procedure THABLinkThread.SyncCallback(SourceID: Integer; Active, OK: Boolean);
+begin
+    Synchronize(
+        procedure begin
+            StatusCallback(SourceID, Active, OK);
+        end
+    );
+end;
 
 end.

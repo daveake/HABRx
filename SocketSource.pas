@@ -66,7 +66,7 @@ begin
                         AClient.Host := HostOrIP;
                         AClient.Port := Port;
                         AClient.Connect;
-                        SyncCallback(SourceID, True, 'Connected to ' + HostOrIP, Position);
+                        SyncCallback(SourceID, True, 'Connected to ' + HostOrIP + ':' + IntToStr(Port), Position);
 
                         SetGroupChangedFlag(GroupName, True);
 

@@ -12,6 +12,7 @@ private
     OurCallsign: String;
     StatusCallback: TStatusCallback;
     procedure UploadSSDV(Packets: TStringList);
+    procedure SyncCallback(SourceID: Integer; Active, OK: Boolean);
   public
     procedure SaveSSDVToHabitat(Line, Callsign: String);
     // procedure SaveSSDVToHabitat(Packet: String);
@@ -40,6 +41,7 @@ var
     JsonToSend: TStringStream;
     i: Integer;
     IdHTTP1: TIdHTTP;
+    SentOK: Boolean;
 begin
     URL := 'http://ssdv.habhub.org/api/v0';
     FormAction := 'packets';
@@ -71,14 +73,17 @@ begin
 
     // Post it
     try
+        SentOK := False;
         IdHTTP1 := TIdHTTP.Create(nil);
         IdHTTP1.Request.ContentType := 'application/json';
         IdHTTP1.Request.ContentEncoding := 'UTF-8';
         IdHTTP1.Response.KeepAlive := False;
         Temp := IdHTTP1.Post(URL + '/' + FormAction, JsonToSend);
+        SentOK := True;
     finally
         IdHTTP1.Free;
         JsonToSend.Free;
+        SyncCallback(0, True, SentOK);
     end;
     // Params.Free;
 end;
@@ -127,6 +132,17 @@ begin
     StatusCallback := Callback;
 
     inherited Create(False);
+end;
+
+procedure TSSDVThread.SyncCallback(SourceID: Integer; Active, OK: Boolean);
+begin
+    if Addr(StatusCallback) <> nil then begin
+        Synchronize(
+            procedure begin
+                StatusCallback(SourceID, Active, OK);
+            end
+        );
+    end;
 end;
 
 end.

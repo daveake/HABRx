@@ -51,7 +51,8 @@ begin
            (Seconds >= Min(10, GetSettingInteger('CHASE', 'Period', 30))) then begin
             Password := 'aurora';
 
-            URL := 'http://spacenear.us/tracker/track.php' +
+            // URL := 'http://spacenear.us/tracker/track.php' +
+            URL := 'http://legacy-snus.habhub.org/tracker/track.php' +
                    '?vehicle=' + GetSettingString('CHASE', 'Callsign', '') + '_Chase' +
                     '&time=' + FormatDateTime('hhmmss', Position.TimeStamp) +
                     '&lat=' + FormatFloat('00.000000', Position.Latitude) +

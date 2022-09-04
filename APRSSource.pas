@@ -58,9 +58,13 @@ begin
 
     Result := False;
     Minus := Pos('-', Callsign);
+
     if Minus > 0 then begin
         SSID := StrToIntDef(Copy(Callsign, Minus+1, 2), 11);
         Result := not (SSID in [0,5,6,7,8,9,10,13,14]);
+    end else if Copy(Callsign, 1, 3) = 'OGN' then begin
+        // Glider network might be a balloon
+        Result := True;
     end;
 end;
 
@@ -106,6 +110,20 @@ begin
         end;
 
         Result := Pos('SondeID', Body) = 0;
+
+        if Result and (Copy(Position.PayloadID, 1, 3) = 'OGN') then begin
+            Posn := Pos('kHz ', Body);
+            if Posn > 0 then begin
+                Position.FrequencyError := MyStrToFloat(Copy(Body, Posn-5, 5));
+                Position.HasFrequency := True;
+            end;
+
+            Posn := Pos('dB ', Body);
+            if Posn > 0 then begin
+                Position.SNR := MyStrToFloat(Copy(Body, Posn-4, 4));
+                Position.HasSNR := True;
+            end;
+        end;
     except
         // Memo1.Lines.Add('invalid characters in latitude/longitude encoding');
     end;
@@ -135,7 +153,6 @@ begin
        (Ord(Body[3]) in [33..124]) and
        (Ord(Body[4]) in [33..124]) and
        (Ord(Body[5]) in [33..124]) then begin
-
         if Length(Body) >= 13 then begin
             Compressed := Copy(Body, 1, 13);
             Body := Copy(Body, 14, Length(Body));
@@ -192,6 +209,11 @@ function ParseAPRSBody(PacketType: Char; Body: String; var Position: THABPositio
 begin
     Result := False;
 
+    if Pos('F0AA50', Position.PayloadID) > 0 then begin
+        Position.IsSSDV := False;
+    end;
+
+
     if Pos(PacketType, '#$%)*<?T[}') > 0 then begin
         // Memo1.Lines.Add('Unsupported format');
     end else if PacketType = ',' then begin
@@ -221,20 +243,14 @@ var
 begin
     Result := False;
     Position := default(THABPosition);
-
     Position.Counter := -1;
-
     Body := Packet;
     Header := GetString(Body, ':');
-
     if Packet <> '' then begin
         Position.PayloadID := GetString(Header, '>');
-
         Position.TimeStamp := Now;
-
         PacketType := Body[1];
         Body := Copy(Body,2,Length(Body));
-
         Result := ParseAPRSBody(PacketType, Body, Position);
     end;
 end;
