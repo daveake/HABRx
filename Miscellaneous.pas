@@ -10,6 +10,8 @@ uses DateUtils, Math, INIFiles,
 
 type TFlightMode = (fmIdle, fmLaunched, fmDescending, fmLanded);
 
+type
+  TPredictionType = (ptNone, ptOnboard, ptTawhiri);
 
 type
   THABPosition = record
@@ -18,6 +20,7 @@ type
     IsSSDV:         Boolean;
     Repeated:       Boolean;
     IsSonde:        Boolean;
+    FailedCRC:      Boolean;
     // ShowMessage:    Boolean;
     Channel:        Integer;
     PayloadID:      String;
@@ -27,25 +30,55 @@ type
     Longitude:      Double;
     Altitude:       Double;
     MaxAltitude:    Double;
-    Satellites:     Integer;
+
+    Satellites:         Integer;
+    HasSatelliteCount:  Boolean;
+
     AscentRate:     Double;
     HaveAscentRate: Boolean;
     FlightMode:     TFlightMode;
     ReceivedAt:     TDateTime;
     Line:           String;
 
-    Humidity:                   Double;
-    HaveHumidity:               Boolean;
+    InternalTemperature:        Double;
+    HaveInternalTemperature:    Boolean;
     ExternalTemperature:        Double;
     HaveExternalTemperature:    Boolean;
+
+    Pressure:                   Double;
+    HavePressure:               Boolean;
+    Humidity:                   Double;
+    HaveHumidity:               Boolean;
+
     Speed:                      Double;
     HaveSpeed:                  Boolean;
 
-    BatteryVoltage: Double;
+    Heading:                    Double;
+    HaveHeading:                Boolean;
 
-    ContainsPrediction:  Boolean;
-    PredictedLatitude: Double;
-    PredictedLongitude: Double;
+    BatteryVoltage:             Double;
+    HasBatteryVoltage:          Boolean;
+
+    BatteryCurrent:             Double;
+    HasBatteryCurrent:          Boolean;
+
+    PredictionType:             TPredictionType;
+    PredictedLatitude:          Double;
+    PredictedLongitude:         Double;
+
+    CutdownStatus:              Integer;
+    HaveCutdownStatus:          Boolean;
+
+    UplinkSNR:                  Integer;
+    HaveUplinkSNR:              Boolean;
+
+    UplinkRSSI:                 Integer;
+    HaveUplinkRSSI:             Boolean;
+
+    UplinkCount:                Integer;
+    HaveUplinkCount:            Boolean;
+
+    LastCommand:                String;
 
     // Packet signal information from the receiver
     SNR:                Double;
@@ -57,6 +90,12 @@ type
     // Current Signal information from the receiver
     CurrentRSSI:        Integer;
     HasCurrentRSSI:     Boolean;
+
+    CDA:                    Double;
+    LandingSpeed:           Double;
+    HaveLandingSpeed:       Boolean;
+    TTL:                    Integer;
+    HaveTTL:                Boolean;
 
     // Frequency error
     FrequencyError:     Double;
@@ -71,7 +110,10 @@ type
     // Calculated Values
     PayloadDocID:           String;
     Distance:               Double;
+
     Direction:              Double;
+    HasDirection:           Boolean;
+
     Elevation:              Double;
     PredictionDistance:     Double;
     PredictionDirection:    Double;
@@ -81,8 +123,9 @@ type
     // APRS Symbol
     Symbol:                 Char;
 
+    FieldList:              String;
     // Field Indices
-    SatelliteFieldIndex:    Integer;
+    // SatelliteFieldIndex:    Integer;
 
     // Transmission (uplink)
     Transmitting:           Boolean;
@@ -111,7 +154,7 @@ type
   end;
 
 type
-  TStatusCallback = procedure(SourceID: Integer; Active, OK: Boolean) of object;
+  TStatusCallback = procedure(SourceID: Integer; Active, OK: Boolean; Status: String) of object;
 
 type
   TSettings = TDictionary<String, Variant>;

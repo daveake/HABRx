@@ -33,7 +33,7 @@ type
   protected
     { Protected declarations }
     procedure Execute; override;
-    function ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition; override;
+    function ExtractPositionFrom(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition; override;
   public
     { Public declarations }
     procedure SendSetting(SettingName, SettingValue: String); override;
@@ -375,7 +375,7 @@ begin
 end;
 {$ENDIF}
 
-function TSerialSource.ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition;
+function TSerialSource.ExtractPositionFrom(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition;
 const
     SNR:                Double = 0;
     HasSNR:             Boolean = False;
@@ -446,13 +446,19 @@ begin
             Position := inherited;
 
             Position.Modulation := 'LoRa (Mode ' + IntToStr(LoRaMode) + ')';
+
             Position.SNR := SNR;
             Position.HasSNR := HasSNR;
-            HasSNR := False;
 
             Position.PacketRSSI := PacketRSSI;
             Position.HasPacketRSSI := HasPacketRSSI;
+
+            Position.FrequencyError := FrequencyError;
+            Position.HasFrequency := HasFrequency;
+
+            HasSNR := False;
             HasPacketRSSI := False;
+            HasFrequency := False;
         end;
 
         if Position.InUse then begin

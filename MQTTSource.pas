@@ -2,7 +2,7 @@ unit MQTTSource;
 
 interface
 
-uses Source, Classes, SysUtils, Miscellaneous, TMS.MQTT.Global, TMS.MQTT.Client;
+uses Source, Classes, DateUtils, SysUtils, Miscellaneous, TMS.MQTT.Global, TMS.MQTT.Client, System.JSON;
 
 type
   TMQTTSource = class(TSource)
@@ -67,7 +67,9 @@ begin
                       (Password = GetSettingString(GroupName, 'Password', '')) and
                       GetSettingBoolean(GroupName, 'Enabled', True) do begin
 
-                    if not MQTTClient.IsConnected then begin
+                    if MQTTClient.IsConnected then begin
+                        Sleep(1000);
+                    end else begin
                         try
                             SyncCallback(SourceID, False, 'Connecting to ' + Host + '...', Position);
 
@@ -114,15 +116,59 @@ end;
 procedure TMQTTSource.PublishReceived(ASender: TObject;
   APacketID: Word; ATopic: string; APayload: TArray<System.Byte>);
 var
-    Sentence: AnsiString;
+    Value: AnsiString;
     Position: THABPosition;
+    TimeStamp, Sentence: String;
+    JSONValue: TJSONValue;
 begin
     Position := Default(THABPosition);
 
-    Sentence := TEncoding.UTF8.GetString(APayload);
+    Value := TEncoding.UTF8.GetString(APayload);
 
+    if Copy(Value,1,2) = '$$' then begin
+        Position := ExtractPositionFrom(Value);
+    end else begin
+        JSONValue := TJSONValue(TJSONObject.ParseJSONValue(Value));
 
-    Position := ExtractPositionFrom(Sentence);
+        try
+            if JSONValue.FindValue('raw') <> nil then begin
+                Sentence := JSONValue.FindValue('raw').Value;
+            end else begin
+                Sentence := '';
+            end;
+
+            if Copy(Sentence, 1, 2) = '$$' then begin
+                Position := ExtractPositionFrom(Sentence);
+            end else begin
+                Position.PayloadID := JSONValue.FindValue('payload_callsign').Value;
+
+                TimeStamp := JSONValue.FindValue('datetime').Value;
+
+                if Length(TimeStamp) >= 19 then begin
+                    Position.TimeStamp := EncodeDateTime(StrToIntDef(Copy(TimeStamp, 1, 4), 0),
+                                                         StrToIntDef(Copy(TimeStamp, 6, 2), 0),
+                                                         StrToIntDef(Copy(TimeStamp, 9, 2), 0),
+                                                         StrToIntDef(Copy(TimeStamp, 12, 2), 0),
+                                                         StrToIntDef(Copy(TimeStamp, 15, 2), 0),
+                                                         StrToIntDef(Copy(TimeStamp, 18, 2), 0),
+                                                         0);
+                    Position.Latitude := MyStrToFloat(JSONValue.FindValue('lat').Value);
+                    Position.Longitude := MyStrToFloat(JSONValue.FindValue('lon').Value);
+                    if JSONValue.FindValue('alt') <> nil then begin
+                        Position.Altitude := MyStrToFloat(JSONValue.FindValue('alt').Value);
+                    end;
+
+                    Position.Line := Position.PayloadID + ',' + FormatDateTime('hh:nn:ss', Position.TimeStamp) + ',' + MyFormatFloat('0.00000', Position.Latitude) + ',' + MyFormatFloat('0.00000', Position.Longitude) + ',' + MyFormatFloat('0', Position.Altitude);
+
+                    Position.ReceivedAt := Now;
+                    Position.InUse := True;
+                end;
+            end;
+        except
+            Position.Line := 'Parsing Error';
+            SyncCallback(SourceID, True, '', Position);
+        end;
+    end;
 
     if Position.InUse then begin
         SyncCallback(SourceID, True, '', Position);

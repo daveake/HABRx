@@ -113,7 +113,9 @@ begin
                 // "predicted_latitude":"0.0","temperature_internal":"40.1","ttl":0,"satellites":10,"predicted_longitude":"0.0"},"callsign":"M0RPI\/5","sequence":"50"},
                 Position.PredictedLatitude := GetJSONFloat(Line, 'predicted_latitude');
                 Position.PredictedLongitude := GetJSONFloat(Line, 'predicted_longitude');
-                Position.ContainsPrediction := (Position.PredictedLatitude <> 0) or (Position.PredictedLongitude <> 0);
+                if (Position.PredictedLatitude <> 0) or (Position.PredictedLongitude <> 0) then begin
+                    Position.PredictionType := ptOnboard;
+                end;
 
                 Position.Line := ' ' + Position.PayloadID + ': ' + FormatDateTime('hh:nn:ss', Position.TimeStamp) + ',' + Position.Latitude.ToString + ',' + Position.Longitude.ToString + ',' + Position.Altitude.ToString;
 

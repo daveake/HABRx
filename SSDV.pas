@@ -139,7 +139,7 @@ begin
     if Addr(StatusCallback) <> nil then begin
         Synchronize(
             procedure begin
-                StatusCallback(SourceID, Active, OK);
+                StatusCallback(SourceID, Active, OK, '');
             end
         );
     end;

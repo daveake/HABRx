@@ -36,8 +36,8 @@ type
     procedure LookForPredictionInSentence(var Position: THABPosition);
     procedure Execute; override;
     procedure SyncCallback(ID: Integer; Connected: Boolean; Line: String; Position: THABPosition);
-    function ExtractPositionFromSentence(Line: String; PayloadID: String = ''): THABPosition;
-    function ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition; virtual;
+    function ExtractPositionFromSentence(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition;
+    function ExtractPositionFrom(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition; virtual;
     function ExtractChaseCarPosition(Line: String): THABPosition;
     function GotFilterIfNeeded: Boolean; virtual;
     procedure AddCommand(Command: String);
@@ -87,21 +87,21 @@ procedure TSource.LookForPredictionInFields(var Position: THABPosition; Fields: 
 var
     i: Integer;
 begin
-    Position.ContainsPrediction := False;
-
-    for i := 6 to Fields.Count-2 do begin
-        try
-            if (Pos('.', Fields[i]) > 0) and (Pos('.', Fields[i+1]) > 0) then begin
-                if (abs(MyStrToFloat(Fields[i]) - Position.Latitude) < 1) and
-                   (abs(MyStrToFloat(Fields[i+1]) - Position.Longitude) < 1) and
-                   (Position.Latitude <> 0) and (Position.Longitude <> 0) then begin
-                    Position.ContainsPrediction := True;
-                    Position.PredictedLatitude := MyStrToFloat(Fields[i]);
-                    Position.PredictedLongitude := MyStrToFloat(Fields[i+1]);
-                    Exit;
+    if Position.PredictionType = ptNone then begin
+        for i := 6 to Fields.Count-2 do begin
+            try
+                if (Pos('.', Fields[i]) > 0) and (Pos('.', Fields[i+1]) > 0) then begin
+                    if (abs(MyStrToFloat(Fields[i]) - Position.Latitude) < 1) and
+                       (abs(MyStrToFloat(Fields[i+1]) - Position.Longitude) < 1) and
+                       (Position.Latitude <> 0) and (Position.Longitude <> 0) then begin
+                        Position.PredictionType := ptOnboard;
+                        Position.PredictedLatitude := MyStrToFloat(Fields[i]);
+                        Position.PredictedLongitude := MyStrToFloat(Fields[i+1]);
+                        Exit;
+                    end;
                 end;
+            except
             end;
-        except
         end;
     end;
 end;
@@ -110,15 +110,15 @@ procedure TSource.LookForPredictionInSentence(var Position: THABPosition);
 var
     Fields: TStringList;
 begin
-    Position.ContainsPrediction := False;
+    if Position.PredictionType = ptNone then begin
+        Fields := TStringList.Create;
 
-    Fields := TStringList.Create;
+        Split(',', Position.Line, Fields);
 
-    Split(',', Position.Line, Fields);
+        LookForPredictionInFields(Position, Fields);
 
-    LookForPredictionInFields(Position, Fields);
-
-    Fields.Free;
+        Fields.Free;
+    end;
 end;
 
 function TSource.ExtractChaseCarPosition(Line: String): THABPosition;
@@ -134,14 +134,14 @@ begin
     Result.InUse := True;
 end;
 
-function TSource.ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition;
+function TSource.ExtractPositionFrom(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition;
 begin
     if Pos('SENTENCE:', Line) = 1 then begin
         Result := ExtractPositionFromSentence(Copy(Line, 10, Length(Line)));
     end else if Pos('CHASE:', Line) = 1 then begin
         Result := ExtractChaseCarPosition(Copy(Line, 7, Length(Line)));
     end else begin
-        Result := ExtractPositionFromSentence(Line);
+        Result := ExtractPositionFromSentence(Line, PayloadID, CheckCRC);
     end;
 end;
 
@@ -166,7 +166,179 @@ begin
     end;
 end;
 
-function TSource.ExtractPositionFromSentence(Line: String; PayloadID: String = ''): THABPosition;
+function ExtractFieldList(Fields: TStringList): String;
+var
+    i: Integer;
+begin
+    Result := '';
+
+    for i := 0 to Fields.Count-1 do begin
+        if Copy(Fields[i], 1, 6) = '012345' then begin
+            Result := Fields[i];
+            Exit;
+        end;
+    end;
+end;
+
+procedure PopulateValuesFromFieldList(Fields: TStringList; var Position: THABPosition);
+var
+    i: Integer;
+begin
+    for i := 1 to Length(Position.FieldList) do begin
+        try
+            case Position.FieldList[i] of
+                '6': begin
+                    Position.Satellites := StrToIntDef(Fields[i-1], 0);
+                    Position.HasSatelliteCount := True;
+                end;
+
+                '7': begin
+                    Position.Speed := MyStrToFloat(Fields[i-1]);
+                    Position.HaveSpeed := True;
+                end;
+
+                '8': begin
+                    Position.Heading := MyStrToFloat(Fields[i-1]);
+                    Position.HaveHeading := True;
+                end;
+
+                '9': begin
+                    Position.BatteryVoltage := MyStrToFloat(Fields[i-1]) / 1000.0;
+                    Position.HasBatteryVoltage := True;
+                end;
+
+                'A': begin
+                    Position.InternalTemperature := MyStrToFloat(Fields[i-1]);
+                    Position.HaveInternalTemperature := True;
+                end;
+
+                'B': begin
+                    Position.ExternalTemperature := MyStrToFloat(Fields[i-1]);
+                    Position.HaveExternalTemperature := True;
+                end;
+
+                'C': begin
+                    Position.PredictedLatitude := MyStrToFloat(Fields[i-1]);
+                    Position.PredictionType := ptOnboard;
+                end;
+
+                'D': begin
+                    Position.PredictedLongitude := MyStrToFloat(Fields[i-1]);
+                    Position.PredictionType := ptOnboard;
+                end;
+
+                'E': begin
+                    Position.CutdownStatus := StrToIntDef(Fields[i-1], 0);
+                    Position.HaveCutdownStatus := True;
+                end;
+
+                'F': begin
+                    Position.UplinkSNR := StrToIntDef(Fields[i-1], 0);
+                    Position.HaveUplinkSNR := True;
+                end;
+
+                'G': begin
+                    Position.UplinkRSSI := StrToIntDef(Fields[i-1], 0);
+                    Position.HaveUplinkRSSI := True;
+                end;
+
+                'H': begin
+                    Position.UplinkCount := StrToIntDef(Fields[i-1], 0);
+                    Position.HaveUplinkCount := True;
+                end;
+
+                'I'..'N': begin
+                end;
+
+                'O': begin
+                end;
+
+                'P': begin
+                    Position.BatteryCurrent := MyStrToFloat(Fields[i-1]);
+                    Position.HasBatteryCurrent := True;
+                end;
+
+                'Q': begin
+                end;
+
+                'R': begin
+                    Position.Pressure := MyStrToFloat(Fields[i-1]);
+                    Position.HavePressure := True;
+                end;
+
+                'S': begin
+                    Position.Humidity := MyStrToFloat(Fields[i-1]);
+                    Position.HaveHumidity := True;
+                end;
+
+                'T': begin
+                    Position.CDA := StrToIntDef(Fields[i-1], 0);
+                end;
+
+                'U': begin
+                    Position.LandingSpeed := MyStrToFloat(Fields[i-1]);
+                    Position.HaveLandingSpeed := True;
+                end;
+
+                'V': begin
+                    Position.TTL := StrToIntDef(Fields[i-1], 0);
+                    Position.HaveTTL := True;
+                end;
+
+                'W': begin
+                    Position.LastCommand := Fields[i-1];
+                    Position.HaveLandingSpeed := True;
+                end;
+            end;
+        except
+
+        end;
+    end;
+
+end;
+
+function ValidCRC(Line: String): Boolean;
+var
+    i, j, Finish: Integer;
+    Started: Boolean;
+    CRC, xPolynomial: WORD;
+begin
+    Result := False;
+    Started := False;
+    Finish := 0;
+    CRC := $ffff;           // Seed
+    xPolynomial := $1021;
+
+    for i := 1 to Length(Line) do begin
+        if (not Started) and (Line[i] <> '$') then begin
+            Started := True;
+        end;
+
+        if Started then begin
+            if Finish = 0 then begin
+                if Line[i] = '*' then begin
+                    Finish := i;
+                end else begin
+                    CRC := CRC xor (WORD(Line[i]) shl 8);
+                    for j := 0 to 7 do begin
+                        if (CRC and $8000) <> 0 then begin
+                            CRC := CRC and $7FFF;
+                            CRC := (CRC shl 1) xor xPolynomial;
+                        end else begin
+                            CRC := CRC shl 1;
+                        end;
+                    end;
+                end;
+            end;
+        end;
+    end;
+
+    if Started and (Finish > 0) then begin
+        Result := Copy(Line, Finish+1, 4) = IntToHex(CRC, 4);
+    end;
+end;
+
+function TSource.ExtractPositionFromSentence(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition;
 var
     Position: THABPosition;
     Fields: TStringList;
@@ -193,50 +365,59 @@ begin
                     Line[Low(Line)] := '$';
                 end;
 
-                Fields := TStringList.Create;
-                try
-                    Split(',', Line, Fields);
-                    if Fields.Count >= 5 then begin
-                        // Do we have a sentence counter?
-                        if Pos(':', Fields[1]) > 0 then begin
-                            // No sentence counter - straight into time
-                            Position.Counter := 0;
-                            Offset := 0;
-                        end else begin
-                            Position.Counter := StrToIntDef(Fields[1], 0);
-                            Offset := 1;
+                if CheckCRC and not ValidCRC(Line) then begin
+                    Position.FailedCRC := True;
+                end else begin
+                    Fields := TStringList.Create;
+                    try
+                        Split(',', Line, Fields);
+                        if Fields.Count >= 5 then begin
+                            // Do we have a sentence counter?
+                            if Pos(':', Fields[1]) > 0 then begin
+                                // No sentence counter - straight into time
+                                Position.Counter := 0;
+                                Offset := 0;
+                            end else begin
+                                Position.Counter := StrToIntDef(Fields[1], 0);
+                                Offset := 1;
+                            end;
+
+                            if Fields.Count >= Offset+5 then begin
+                                Position.InUse := True;
+                                Position.ReceivedAt := Now;
+                                Position.PayloadID := stringreplace(Fields[0], '$', '', [rfReplaceAll]);
+
+                                Position.TimeStamp :=  GetTimeFromString(Fields[Offset+1]);
+    //                            if Pos(':', Fields[Offset+1]) > 0 then begin
+    //                                // Position.TimeStamp :=  StrToTime(Fields[2]);
+    //                                Position.TimeStamp :=  EncodeTime(StrToIntDef(Copy(Fields[Offset+1], 1, 2), 0),
+    //                                                                  StrToIntDef(Copy(Fields[Offset+1], 4, 2), 0),
+    //                                                                  StrToIntDef(Copy(Fields[Offset+1], 7, 2), 0),
+    //                                                                  0);
+    //                            end else begin
+    //                                Position.TimeStamp :=  EncodeTime(StrToIntDef(Copy(Fields[Offset+1], 1, 2), 0),
+    //                                                                  StrToIntDef(Copy(Fields[Offset+1], 3, 2), 0),
+    //                                                                  StrToIntDef(Copy(Fields[Offset+1], 5, 2), 0),
+    //                                                                  0);
+    //                            end;
+                                InsertDate(Position.TimeStamp);
+                                Position.Latitude := MyStrToFloat(Fields[Offset+2]);
+                                Position.Longitude := MyStrToFloat(Fields[Offset+3]);
+                                Temp := Fields[Offset+4];
+                                Position.Altitude := MyStrToFloat(GetString(Temp, '*'));
+
+                                Position.FieldList := ExtractFieldList(Fields);
+
+                                if Position.FieldList = '' then begin
+                                    LookForPredictionInFields(Position, Fields);
+                                end else begin
+                                    PopulateValuesFromFieldList(Fields, Position);
+                                end;
+                            end;
                         end;
-
-                        if Fields.Count >= Offset+5 then begin
-                            Position.InUse := True;
-                            Position.ReceivedAt := Now;
-                            Position.PayloadID := stringreplace(Fields[0], '$', '', [rfReplaceAll]);
-
-                            Position.TimeStamp :=  GetTimeFromString(Fields[Offset+1]);
-//                            if Pos(':', Fields[Offset+1]) > 0 then begin
-//                                // Position.TimeStamp :=  StrToTime(Fields[2]);
-//                                Position.TimeStamp :=  EncodeTime(StrToIntDef(Copy(Fields[Offset+1], 1, 2), 0),
-//                                                                  StrToIntDef(Copy(Fields[Offset+1], 4, 2), 0),
-//                                                                  StrToIntDef(Copy(Fields[Offset+1], 7, 2), 0),
-//                                                                  0);
-//                            end else begin
-//                                Position.TimeStamp :=  EncodeTime(StrToIntDef(Copy(Fields[Offset+1], 1, 2), 0),
-//                                                                  StrToIntDef(Copy(Fields[Offset+1], 3, 2), 0),
-//                                                                  StrToIntDef(Copy(Fields[Offset+1], 5, 2), 0),
-//                                                                  0);
-//                            end;
-                            InsertDate(Position.TimeStamp);
-                            Position.Latitude := MyStrToFloat(Fields[Offset+2]);
-                            Position.Longitude := MyStrToFloat(Fields[Offset+3]);
-                            Temp := Fields[Offset+4];
-                            Position.Altitude := MyStrToFloat(GetString(Temp, '*'));
-                            // Position.Satellites := StrToIntDef(Fields[Offset+5], 0);     // We really don't know where this field is
-
-                            LookForPredictionInFields(Position, Fields);
-                        end;
+                    finally
+                        Fields.Free;
                     end;
-                finally
-                    Fields.Free;
                 end;
             end else if Copy(Line,1,2) = '^^' then begin
                 // Calling Packet

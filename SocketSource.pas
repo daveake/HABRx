@@ -90,8 +90,13 @@ begin
                             Line := AClient.IOHandler.ReadLn;
                             if Line <> '' then begin
                                 try
-                                    Position := ExtractPositionFrom(Line);
-                                    if Position.InUse or Position.HasPacketRSSI or Position.HasCurrentRSSI then begin
+                                    Position := ExtractPositionFrom(Line, '', True);
+                                    if Position.FailedCRC then begin
+                                        SyncCallback(SourceID, True, 'Failed CRC Check', Position);
+                                    end else if Position.InUse or Position.HasPacketRSSI or Position.HasCurrentRSSI then begin
+                                        if Position.Modulation = '' then begin
+                                            Position.Modulation := 'UKHAS';
+                                        end;
                                         SyncCallback(SourceID, True, '', Position);
                                     end;
                                 except

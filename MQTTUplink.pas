@@ -161,7 +161,7 @@ procedure TMQTTThread.SyncCallback(SourceID: Integer; Active, OK: Boolean);
 begin
     Synchronize(
         procedure begin
-            StatusCallback(SourceID, Active, OK);
+            StatusCallback(SourceID, Active, OK, '');
         end
     );
 end;

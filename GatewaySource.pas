@@ -19,7 +19,7 @@ type
   protected
     { Protected declarations }
     procedure InitialiseDevice; override;
-    function ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition; override;
+    function ExtractPositionFrom(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition; override;
   public
     { Public declarations }
     procedure SendSetting(SettingName, SettingValue: String); override;
@@ -40,7 +40,7 @@ begin
 end;
 
 
-function TGatewaySource.ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition;
+function TGatewaySource.ExtractPositionFrom(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition;
 var
     Position: THABPosition;
 begin
