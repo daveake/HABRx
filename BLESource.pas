@@ -31,7 +31,7 @@ type
   protected
     { Protected declarations }
     procedure Execute; override;
-    function ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition; override;
+    function ExtractPositionFrom(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition; override;
   public
     { Public declarations }
     procedure SendSetting(SettingName, SettingValue: String); override;
@@ -235,7 +235,7 @@ begin
     end;
 end;
 
-function TBLESource.ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition;
+function TBLESource.ExtractPositionFrom(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition;
 var
     Command: String;
     Position: THABPosition;

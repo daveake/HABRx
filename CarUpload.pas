@@ -106,7 +106,7 @@ procedure TCarUpload.SyncCallback(Active, OK: Boolean);
 begin
     Synchronize(
         procedure begin
-            StatusCallback(GPS_SOURCE, Active, OK);
+            StatusCallback(GPS_SOURCE, Active, OK, '');
         end
     );
 end;

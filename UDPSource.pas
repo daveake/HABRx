@@ -50,7 +50,7 @@ begin
             SetGroupChangedFlag(GroupName, False);
             PortList := GetSettingString(GroupName, 'Port', '');
 
-            if PortList = '' then begin
+            if (PortList = '') or (PortList = '0') then begin
                 SyncCallback(SourceID, True, 'No ports specified', Position);
             end else begin
                 // Create client

@@ -12,7 +12,7 @@ private
     SendingCar: Boolean;
     StatusCallback: TStatusCallback;
     TMSMQTTClient1: TTMSMQTTClient;
-    procedure SyncCallback(SourceID: Integer; Active, OK: Boolean);
+    procedure SyncCallback(SourceID: Integer; Active, OK: Boolean; Status: String);
     procedure ConnectedStatusChanged(ASender: TObject; const AConnected: Boolean; AStatus: TTMSMQTTConnectionStatus);
   public
     procedure SendTelemetry(PayloadID, Sentence: String);
@@ -70,7 +70,7 @@ begin
 
     while not Terminated do begin
         if TMSMQTTClient1.BrokerHostName = '' then begin
-            SyncCallback(0, False, True);
+            SyncCallback(0, False, True, 'Missing broker name');
         end else begin
             if not TMSMQTTClient1.IsConnected then begin
                 try
@@ -104,12 +104,12 @@ begin
         //                AClient.IOHandler.CloseGracefully;
         //                AClient.Disconnect;
                         SentOK := True;
+                        SyncCallback(0, True, SentOK, 'Published OK to broker');
                     except
                         SentOK := False;
+                        SyncCallback(0, True, SentOK, 'Failed to publish');
                         // AClient.Disconnect;
                     end;
-
-                    SyncCallback(0, True, SentOK);
 
                     if SentOK then begin
                         CritSection.Enter;
@@ -139,9 +139,9 @@ begin
     Position := Default(THABPosition);
 
     if AConnected then begin
-        SyncCallback(0, False, True);
+        SyncCallback(0, False, True, 'Connected to broker');
     end else begin
-        SyncCallback(0, False, False);
+        SyncCallback(0, False, False, 'Disconnected from broker');
     end;
 end;
 
@@ -157,11 +157,11 @@ begin
     inherited Create(False);
 end;
 
-procedure TMQTTThread.SyncCallback(SourceID: Integer; Active, OK: Boolean);
+procedure TMQTTThread.SyncCallback(SourceID: Integer; Active, OK: Boolean; Status: String);
 begin
     Synchronize(
         procedure begin
-            StatusCallback(SourceID, Active, OK, '');
+            StatusCallback(SourceID, Active, OK, Status);
         end
     );
 end;

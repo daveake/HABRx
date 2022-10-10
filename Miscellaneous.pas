@@ -81,21 +81,21 @@ type
     LastCommand:                String;
 
     // Packet signal information from the receiver
-    SNR:                Double;
-    HasSNR:             Boolean;
+    SNR:                        Integer;
+    HasSNR:                     Boolean;
 
-    PacketRSSI:         Integer;
-    HasPacketRSSI:      Boolean;
+    PacketRSSI:                 Integer;
+    HasPacketRSSI:              Boolean;
 
     // Current Signal information from the receiver
-    CurrentRSSI:        Integer;
-    HasCurrentRSSI:     Boolean;
+    CurrentRSSI:                Integer;
+    HasCurrentRSSI:             Boolean;
 
-    CDA:                    Double;
-    LandingSpeed:           Double;
-    HaveLandingSpeed:       Boolean;
-    TTL:                    Integer;
-    HaveTTL:                Boolean;
+    CDA:                        Double;
+    LandingSpeed:               Double;
+    HaveLandingSpeed:           Boolean;
+    TTL:                        Integer;
+    HaveTTL:                    Boolean;
 
     // Frequency error
     FrequencyError:     Double;
@@ -218,9 +218,11 @@ const
     SERIAL_SOURCE = 1;
     BLUETOOTH_SOURCE = 2;
     UDP_SOURCE = 3;
-    HABITAT_SOURCE = 4;
+    SONDEHUB_SOURCE = 4;
     GATEWAY_SOURCE_1 = 5;
     GATEWAY_SOURCE_2 = 6;
+    HABHUB_SOURCE = 7;
+    HABLINK_SOURCE = 8;
 
 
 var

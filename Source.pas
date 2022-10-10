@@ -2,7 +2,7 @@ unit Source;
 
 interface
 
-uses Classes, SysUtils, System.DateUtils, Miscellaneous;
+uses Classes, SysUtils, System.DateUtils, Miscellaneous, System.JSON;
 
 type
   TUplinkWhen = (uwNone, uwNow, uwSecondsAfterMinute, uwAfterRx);
@@ -41,6 +41,7 @@ type
     function ExtractChaseCarPosition(Line: String): THABPosition;
     function GotFilterIfNeeded: Boolean; virtual;
     procedure AddCommand(Command: String);
+    procedure ProcessMQTTMessage(Topic, Value: String);
   public
     { Public declarations }
     procedure SendUplink(When: TUplinkWhen; WhenValue, Channel: Integer; Prefix, Msg, Password: String);
@@ -343,7 +344,7 @@ var
     Position: THABPosition;
     Fields: TStringList;
     Temp, HostName, IPAddress, MessageType: String;
-    Offset: Integer;
+    Start, Offset: Integer;
 begin
     Position := Default(THABPosition);
 
@@ -355,71 +356,7 @@ begin
         end;
 
         if Line <> '' then begin
-            // Check for repeated packets
-
-            if Line[Low(Line)] in ['$', '%'] then begin
-                // UKHAS sentence
-
-                if Line[Low(Line)] = '%' then begin
-                    Position.Repeated := True;
-                    Line[Low(Line)] := '$';
-                end;
-
-                if CheckCRC and not ValidCRC(Line) then begin
-                    Position.FailedCRC := True;
-                end else begin
-                    Fields := TStringList.Create;
-                    try
-                        Split(',', Line, Fields);
-                        if Fields.Count >= 5 then begin
-                            // Do we have a sentence counter?
-                            if Pos(':', Fields[1]) > 0 then begin
-                                // No sentence counter - straight into time
-                                Position.Counter := 0;
-                                Offset := 0;
-                            end else begin
-                                Position.Counter := StrToIntDef(Fields[1], 0);
-                                Offset := 1;
-                            end;
-
-                            if Fields.Count >= Offset+5 then begin
-                                Position.InUse := True;
-                                Position.ReceivedAt := Now;
-                                Position.PayloadID := stringreplace(Fields[0], '$', '', [rfReplaceAll]);
-
-                                Position.TimeStamp :=  GetTimeFromString(Fields[Offset+1]);
-    //                            if Pos(':', Fields[Offset+1]) > 0 then begin
-    //                                // Position.TimeStamp :=  StrToTime(Fields[2]);
-    //                                Position.TimeStamp :=  EncodeTime(StrToIntDef(Copy(Fields[Offset+1], 1, 2), 0),
-    //                                                                  StrToIntDef(Copy(Fields[Offset+1], 4, 2), 0),
-    //                                                                  StrToIntDef(Copy(Fields[Offset+1], 7, 2), 0),
-    //                                                                  0);
-    //                            end else begin
-    //                                Position.TimeStamp :=  EncodeTime(StrToIntDef(Copy(Fields[Offset+1], 1, 2), 0),
-    //                                                                  StrToIntDef(Copy(Fields[Offset+1], 3, 2), 0),
-    //                                                                  StrToIntDef(Copy(Fields[Offset+1], 5, 2), 0),
-    //                                                                  0);
-    //                            end;
-                                InsertDate(Position.TimeStamp);
-                                Position.Latitude := MyStrToFloat(Fields[Offset+2]);
-                                Position.Longitude := MyStrToFloat(Fields[Offset+3]);
-                                Temp := Fields[Offset+4];
-                                Position.Altitude := MyStrToFloat(GetString(Temp, '*'));
-
-                                Position.FieldList := ExtractFieldList(Fields);
-
-                                if Position.FieldList = '' then begin
-                                    LookForPredictionInFields(Position, Fields);
-                                end else begin
-                                    PopulateValuesFromFieldList(Fields, Position);
-                                end;
-                            end;
-                        end;
-                    finally
-                        Fields.Free;
-                    end;
-                end;
-            end else if Copy(Line,1,2) = '^^' then begin
+            if Copy(Line,1,2) = '^^' then begin
                 // Calling Packet
                 Fields := TStringList.Create;
                 try
@@ -638,6 +575,71 @@ begin
 
                 Position.TimeStamp := TTimeZone.Local.ToUniversalTime(Now);
                 Position.InUse := True;
+            end else begin
+                Start := Pos('$$', Line);
+                if Start = 0 then begin
+                    Start := Pos('%$', Line);
+                    Position.Repeated := Start > 0;
+                end;
+
+                if Start > 0 then begin
+                    Line := Copy(Line, Start, Length(Line));
+                    Line[Low(Line)] := '$';
+                    if CheckCRC and not ValidCRC(Line) then begin
+                        Position.FailedCRC := True;
+                    end else begin
+                        Fields := TStringList.Create;
+                        try
+                            Split(',', Line, Fields);
+                            if Fields.Count >= 5 then begin
+                                // Do we have a sentence counter?
+                                if Pos(':', Fields[1]) > 0 then begin
+                                    // No sentence counter - straight into time
+                                    Position.Counter := 0;
+                                    Offset := 0;
+                                end else begin
+                                    Position.Counter := StrToIntDef(Fields[1], 0);
+                                    Offset := 1;
+                                end;
+
+                                if Fields.Count >= Offset+5 then begin
+                                    Position.InUse := True;
+                                    Position.ReceivedAt := Now;
+                                    Position.PayloadID := stringreplace(Fields[0], '$', '', [rfReplaceAll]);
+
+                                    Position.TimeStamp :=  GetTimeFromString(Fields[Offset+1]);
+        //                            if Pos(':', Fields[Offset+1]) > 0 then begin
+        //                                // Position.TimeStamp :=  StrToTime(Fields[2]);
+        //                                Position.TimeStamp :=  EncodeTime(StrToIntDef(Copy(Fields[Offset+1], 1, 2), 0),
+        //                                                                  StrToIntDef(Copy(Fields[Offset+1], 4, 2), 0),
+        //                                                                  StrToIntDef(Copy(Fields[Offset+1], 7, 2), 0),
+        //                                                                  0);
+        //                            end else begin
+        //                                Position.TimeStamp :=  EncodeTime(StrToIntDef(Copy(Fields[Offset+1], 1, 2), 0),
+        //                                                                  StrToIntDef(Copy(Fields[Offset+1], 3, 2), 0),
+        //                                                                  StrToIntDef(Copy(Fields[Offset+1], 5, 2), 0),
+        //                                                                  0);
+        //                            end;
+                                    InsertDate(Position.TimeStamp);
+                                    Position.Latitude := MyStrToFloat(Fields[Offset+2]);
+                                    Position.Longitude := MyStrToFloat(Fields[Offset+3]);
+                                    Temp := Fields[Offset+4];
+                                    Position.Altitude := MyStrToFloat(GetString(Temp, '*'));
+
+                                    Position.FieldList := ExtractFieldList(Fields);
+
+                                    if Position.FieldList = '' then begin
+                                        LookForPredictionInFields(Position, Fields);
+                                    end else begin
+                                        PopulateValuesFromFieldList(Fields, Position);
+                                    end;
+                                end;
+                            end;
+                        finally
+                            Fields.Free;
+                        end;
+                    end;
+                end;
             end;
         end;
     finally
@@ -725,6 +727,64 @@ procedure TSource.SetFilter(Filter: String);
 begin
     SourceFilter := Filter;
     NeedToReconnect := True;
+end;
+
+procedure TSource.ProcessMQTTMessage(Topic, Value: String);
+var
+    Position: THABPosition;
+    TimeStamp, Sentence: String;
+    JSONValue: TJSONValue;
+begin
+    Position := Default(THABPosition);
+
+    if Copy(Value,1,2) = '$$' then begin
+        Position := ExtractPositionFrom(Value);
+    end else begin
+        JSONValue := TJSONValue(TJSONObject.ParseJSONValue(Value));
+
+        try
+            if JSONValue.FindValue('raw') <> nil then begin
+                Sentence := JSONValue.FindValue('raw').Value;
+            end else begin
+                Sentence := '';
+            end;
+
+            if Copy(Sentence, 1, 2) = '$$' then begin
+                Position := ExtractPositionFrom(Sentence);
+            end else begin
+                Position.PayloadID := JSONValue.FindValue('payload_callsign').Value;
+
+                TimeStamp := JSONValue.FindValue('datetime').Value;
+
+                if Length(TimeStamp) >= 19 then begin
+                    Position.TimeStamp := EncodeDateTime(StrToIntDef(Copy(TimeStamp, 1, 4), 0),
+                                                         StrToIntDef(Copy(TimeStamp, 6, 2), 0),
+                                                         StrToIntDef(Copy(TimeStamp, 9, 2), 0),
+                                                         StrToIntDef(Copy(TimeStamp, 12, 2), 0),
+                                                         StrToIntDef(Copy(TimeStamp, 15, 2), 0),
+                                                         StrToIntDef(Copy(TimeStamp, 18, 2), 0),
+                                                         0);
+                    Position.Latitude := MyStrToFloat(JSONValue.FindValue('lat').Value);
+                    Position.Longitude := MyStrToFloat(JSONValue.FindValue('lon').Value);
+                    if JSONValue.FindValue('alt') <> nil then begin
+                        Position.Altitude := MyStrToFloat(JSONValue.FindValue('alt').Value);
+                    end;
+
+                    Position.Line := Position.PayloadID + ',' + FormatDateTime('hh:nn:ss', Position.TimeStamp) + ',' + MyFormatFloat('0.00000', Position.Latitude) + ',' + MyFormatFloat('0.00000', Position.Longitude) + ',' + MyFormatFloat('0', Position.Altitude);
+
+                    Position.ReceivedAt := Now;
+                    Position.InUse := True;
+                end;
+            end;
+        except
+            Position.Line := 'Parsing Error';
+            SyncCallback(SourceID, True, '', Position);
+        end;
+    end;
+
+    if Position.InUse then begin
+        SyncCallback(SourceID, True, '', Position);
+    end;
 end;
 
 

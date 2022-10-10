@@ -196,8 +196,11 @@ procedure TSerialSource.Execute;
 var
     PermissionRequested: Boolean;
     Position: THABPosition;
+    InitialiseAt: TDateTime;
 begin
     inherited;
+
+    InitialiseAt := 0;
 
     UsbSerial := TUsbSerial.Create;
     UsbSerial.OnDeviceAttached := OnDeviceAttached;
@@ -218,6 +221,11 @@ begin
                     end;
                 end;
 
+                if (InitialiseAt > 0) and (Now >= InitialiseAt) then begin
+                    InitialiseAt := 0;
+                    InitialiseDevice;
+                end;
+
                 if Commands.Count > 0 then begin
                     UsbSerial.Write(TEncoding.UTF8.GetBytes(Commands[0] + #13), 0);
                     Commands.Delete(0);
@@ -232,8 +240,9 @@ begin
                             if OpenUSBDevice(SelectedUSBDevice) then begin
                                 SendMessage('USB Device Opened');
                                 ShowWhenReceiving := True;
-                                Sleep(2000);         // Give device a chance to initialise itself before we program it
-                                InitialiseDevice;
+                                InitialiseAt := Now + 5/86400;
+                                // Sleep(2000);         // Give device a chance to initialise itself before we program it
+                                // InitialiseDevice;
                             end;
                         end else if not PermissionRequested then begin
                             PermissionRequested := True;
@@ -377,7 +386,7 @@ end;
 
 function TSerialSource.ExtractPositionFrom(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition;
 const
-    SNR:                Double = 0;
+    SNR:                Integer = 0;
     HasSNR:             Boolean = False;
 
     PacketRSSI:         Integer = 0;

@@ -120,7 +120,7 @@ begin
 
             Posn := Pos('dB ', Body);
             if Posn > 0 then begin
-                Position.SNR := MyStrToFloat(Copy(Body, Posn-4, 4));
+                Position.SNR := Round(MyStrToFloat(Copy(Body, Posn-4, 4)));
                 Position.HasSNR := True;
             end;
         end;

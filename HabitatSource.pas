@@ -184,7 +184,7 @@ begin
                 Response := GetURL(Request);
                 try
                     if not ProcessHabitatResponse(Response) then begin
-                        SendMessage('Nothing On Habitat');
+                        SendMessage('Nothing On HABHUB from ' + List);
                     end;
                 except
                     SendMessage('Error in ProcessHabitatResponse');
@@ -192,7 +192,7 @@ begin
                 Delay(9000);
             end;
         end else begin
-            SendMessage('Habitat Download Disabled');
+            SendMessage('HABHUB Download Disabled');
         end;
         Delay(1000);
     end;

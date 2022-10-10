@@ -23,6 +23,7 @@ private
     function UploadPosition(SourceID: Integer): Boolean;
     function UploadListener: Boolean;
   public
+    PayloadList: String;
     procedure SaveTelemetryToSondehub(SourceID: Integer; Position: THABPosition);
     procedure Execute; override;
     procedure SetListenerPosition(Latitude, Longitude, Altitude: Double);
@@ -146,7 +147,7 @@ begin
                 '"uploader_callsign": "' + OurCallsign + '",' +
                 '"time_received": "' + FormatDateTime('yyyy-mm-dd"T"hh:nn:ss"Z"', UTC) + '",' +
                 '"payload_callsign": "' + PayloadID + '",' +
-                '"datetime":"' + FormatDateTime('yyyy-mm-dd"T"hh:nn:ss"Z"', UTC) + '",' +
+                '"datetime":"' + FormatDateTime('yyyy-mm-dd"T"hh:nn:ss"Z"', TimeStamp) + '",' +
                 '"lat": ' + MyFormatFloat('0.00000', Latitude) + ',' +
                 '"lon": ' + MyFormatFloat('0.00000', Longitude) + ',' +
                 '"alt": ' + MyFormatFloat('0', Altitude) + ',' +

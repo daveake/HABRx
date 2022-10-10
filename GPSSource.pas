@@ -15,7 +15,7 @@ type
   protected
     { Protected declarations }
 {$IFDEF MSWINDOWS}
-    function ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition; override;
+    function ExtractPositionFrom(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition; override;
     procedure Execute; override;
 {$ENDIF}
   public
@@ -37,7 +37,7 @@ begin
 end;
 
 {$IFDEF MSWINDOWS}
-function TGPSSource.ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition;
+function TGPSSource.ExtractPositionFrom(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition;
 const
     Direction: Double = 0;
 var
@@ -111,7 +111,7 @@ var
     DCB : TDCB;
     NumberOfBytesRead : dword;
     Buffer : array[0..80] of Ansichar;
-    i: Integer;
+    i: dword;
 begin
     while not Terminated do begin
         CommPort := GetSettingString(GroupName, 'Port', '');
@@ -152,17 +152,19 @@ begin
 
                 while (not Terminated) and (not GetGroupChangedFlag(GroupName)) do begin
                     if ReadFile(hCommFile, Buffer, sizeof(Buffer), NumberOfBytesRead, nil) then begin
-                        for i := 0 to NumberOfBytesRead - 1 do begin
-                            if Buffer[i] = #13 then begin
-                                Position := ExtractPositionFrom(String(Line));
-                                if Position.InUse then begin
-                                    SyncCallback(SourceID, True, string(Line), Position);
+                        if NumberOfBytesRead > 0 then begin
+                            for i := 0 to NumberOfBytesRead - 1 do begin
+                                if Buffer[i] = #13 then begin
+                                    Position := ExtractPositionFrom(String(Line));
+                                    if Position.InUse then begin
+                                        SyncCallback(SourceID, True, string(Line), Position);
+                                    end;
+                                    Line := '';
+                                end else if Buffer[i] = '$' then begin
+                                    Line := Buffer[i];
+                                end else if Line <> '' then begin
+                                    Line := Line + Buffer[i];
                                 end;
-                                Line := '';
-                            end else if Buffer[i] = '$' then begin
-                                Line := Buffer[i];
-                            end else if Line <> '' then begin
-                                Line := Line + Buffer[i];
                             end;
                         end;
                     end;
