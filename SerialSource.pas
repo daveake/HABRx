@@ -18,11 +18,21 @@ type
     { Private declarations }
     CurrentFrequency: Double;
     LoRaMode: Integer;
+
+    Line: AnsiString;
+    SNR:                Integer;
+    HasSNR:             Boolean;
+    PacketRSSI:         Integer;
+    HasPacketRSSI:      Boolean;
+    FrequencyError:     Double;
+    HasFrequency:       Boolean;
+
 {$IFDEF ANDROID}
     UsbDevices: TArray<JUsbDevice>;
     UsbSerial: TUsbSerial;
     SelectedUSBDevice: JUsbDevice;
     ShowWhenReceiving: Boolean;
+
     procedure RefreshDevices;
     function OpenUSBDevice(SelectedUSBDevice: JUsbDevice): Boolean;
     procedure OnDeviceAttached(Device: JUsbDevice);
@@ -66,8 +76,6 @@ begin
 end;
 
 procedure TSerialSource.Execute;
-const
-    Line: AnsiString='';
 var
     Position: THABPosition;
     Temp, CommPort, Sentence: String;
@@ -321,8 +329,6 @@ begin
 end;
 
 procedure TSerialSource.OnReceivedData(Data: TJavaArray<Byte>);
-const
-    Line: String = '';
 var
     NewText, Sentence: String;
     i: Integer;
@@ -385,15 +391,6 @@ end;
 {$ENDIF}
 
 function TSerialSource.ExtractPositionFrom(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition;
-const
-    SNR:                Integer = 0;
-    HasSNR:             Boolean = False;
-
-    PacketRSSI:         Integer = 0;
-    HasPacketRSSI:      Boolean = False;
-
-    FrequencyError:     Double = 0;
-    HasFrequency:       Boolean = False;
 var
     Command: String;
     Position: THABPosition;

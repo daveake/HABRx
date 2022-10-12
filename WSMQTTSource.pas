@@ -6,7 +6,7 @@ uses Source, Classes, DateUtils, SysUtils, Miscellaneous,
      sgcWebSocket_Classes, sgcWebSocket_Protocol_Base_Client,
      sgcWebSocket_Protocol_MQTT_Client, sgcWebSocket_Protocols, sgcBase_Classes,
      sgcTCP_Classes, sgcWebSocket_Classes_Indy, sgcWebSocket_Client, sgcWebSocket,
-     sgcWebSocket_Protocol_MQTT_Message, sgcSocket_Classes;
+     sgcWebSocket_Protocol_MQTT_Message, sgcSocket_Classes, sgcWebSocket_Types;
 
 type
   TWSMQTTSource = class(TSource)
@@ -25,6 +25,11 @@ type
       DisconnectProperties: TsgcWSMQTTDISCONNECTProperties);
     procedure MQTTMQTTPublish(Connection: TsgcWSConnection; aTopic,
       aText: string; PublishProperties: TsgcWSMQTTPublishProperties);
+    procedure WSClientException(Connection: TsgcWSConnection;
+      E: Exception);
+    procedure MQTTMQTTSubscribe(Connection: TsgcWSConnection;
+      aPacketIdentifier: Word; aCodes: TsgcWSSUBACKS;
+      SubscribeProperties: TsgcWSMQTTSUBACKProperties);
   protected
     { Protected declarations }
     procedure Execute; override;
@@ -45,13 +50,19 @@ begin
 
     // Create clients
     WSClient := TsgcWebSocketClient.Create(nil);
+    WsClient.OnException := WSClientException;
 
     MQTTClient := TsgcWSPClient_MQTT.Create(nil);
     MQTTClient.Client := WSClient;
 
+{$IFDEF ANDROID}
+    WSClient.TLSOptions.OpenSSL_Options.LibPath := oslpDefaultFolder;
+{$ENDIF}
+
     MQTTClient.OnMQTTConnect := MQTTMQTTConnect;
     MQTTClient.OnMQTTDisconnect := MQTTMQTTDisconnect;
     MQTTClient.OnMQTTPublish := MQTTMQTTPublish;
+    MQTTClient.OnMQTTSubscribe := MQTTMQTTSubscribe;
 
     Position := Default(THABPosition);
 
@@ -173,108 +184,20 @@ begin
     ProcessMQTTMessage(aTopic, aText);
 end;
 
-(*
-procedure TWSMQTTSource.ConnectedStatusChanged(ASender: TObject;
-  const AConnected: Boolean; AStatus: TTMSMQTTConnectionStatus);
+procedure TWSMQTTSource.WSClientException(Connection: TsgcWSConnection;
+  E: Exception);
 var
     Position: THABPosition;
-    Payloads, PayloadTopic, PayloadID: String;
 begin
     Position := Default(THABPosition);
 
-    if AConnected then begin
-        if Filtered then begin
-            if (WhiteList + ExtraPayloads) = '' then begin
-                SyncCallback(SourceID, False, 'No payloads to subscribe to ', Position);
-            end else begin
-                Payloads := WhiteList + ',' + ExtraPayloads;
-                SyncCallback(SourceID, False, 'Subscribing to ' + Topic + Payloads, Position);
-
-                repeat
-                    PayloadID := GetString(Payloads, ',');
-                    if PayloadID <> '' then begin
-                        PayloadTopic := Topic + PayloadID + '/#';
-                        MQTTClient.Subscribe(PayloadTopic);
-                    end;
-                until Payloads = '';
-             end;
-        end else begin
-            SyncCallback(SourceID, False, 'Subscribing to ' + Topic, Position);
-            MQTTClient.Subscribe(Topic);
-        end;
-    end else begin
-        case AStatus of
-            csConnecting:       SyncCallback(SourceID, False, 'Connecting to broker', Position);
-            csConnectionLost:   SyncCallback(SourceID, False, 'Lost connection to broker', Position);
-            csReconnecting:     SyncCallback(SourceID, False, 'Reconnecting to broker', Position);
-            else                SyncCallback(SourceID, False, 'Not Connected to broker', Position);
-        end;
-    end;
+    SyncCallback(SourceID, False, 'WS Exception: ' + E.Message, Position);
 end;
 
-procedure TWSMQTTSource.PublishReceived(ASender: TObject;
-  APacketID: Word; ATopic: string; APayload: TArray<System.Byte>);
-var
-    Value: AnsiString;
-    Position: THABPosition;
-    TimeStamp, Sentence: String;
-    JSONValue: TJSONValue;
-begin
-    Position := Default(THABPosition);
 
-    Value := TEncoding.UTF8.GetString(APayload);
-
-    if Copy(Value,1,2) = '$$' then begin
-        Position := ExtractPositionFrom(Value);
-    end else begin
-        JSONValue := TJSONValue(TJSONObject.ParseJSONValue(Value));
-
-        try
-            if JSONValue.FindValue('raw') <> nil then begin
-                Sentence := JSONValue.FindValue('raw').Value;
-            end else begin
-                Sentence := '';
-            end;
-
-            if Copy(Sentence, 1, 2) = '$$' then begin
-                Position := ExtractPositionFrom(Sentence);
-            end else begin
-                Position.PayloadID := JSONValue.FindValue('payload_callsign').Value;
-
-                TimeStamp := JSONValue.FindValue('datetime').Value;
-
-                if Length(TimeStamp) >= 19 then begin
-                    Position.TimeStamp := EncodeDateTime(StrToIntDef(Copy(TimeStamp, 1, 4), 0),
-                                                         StrToIntDef(Copy(TimeStamp, 6, 2), 0),
-                                                         StrToIntDef(Copy(TimeStamp, 9, 2), 0),
-                                                         StrToIntDef(Copy(TimeStamp, 12, 2), 0),
-                                                         StrToIntDef(Copy(TimeStamp, 15, 2), 0),
-                                                         StrToIntDef(Copy(TimeStamp, 18, 2), 0),
-                                                         0);
-                    Position.Latitude := MyStrToFloat(JSONValue.FindValue('lat').Value);
-                    Position.Longitude := MyStrToFloat(JSONValue.FindValue('lon').Value);
-                    if JSONValue.FindValue('alt') <> nil then begin
-                        Position.Altitude := MyStrToFloat(JSONValue.FindValue('alt').Value);
-                    end;
-
-                    Position.Line := Position.PayloadID + ',' + FormatDateTime('hh:nn:ss', Position.TimeStamp) + ',' + MyFormatFloat('0.00000', Position.Latitude) + ',' + MyFormatFloat('0.00000', Position.Longitude) + ',' + MyFormatFloat('0', Position.Altitude);
-
-                    Position.ReceivedAt := Now;
-                    Position.InUse := True;
-                end;
-            end;
-        except
-            Position.Line := 'Parsing Error';
-            SyncCallback(SourceID, True, '', Position);
-        end;
-    end;
-
-    if Position.InUse then begin
-        SyncCallback(SourceID, True, '', Position);
-    end;
-end;
-
-procedure TWSMQTTSource.SubscriptionAcknowledged(ASender: TObject; APacketID: Word; ASubscriptions: TTMSMQTTSubscriptions);
+procedure TWSMQTTSource.MQTTMQTTSubscribe(Connection: TsgcWSConnection;
+  aPacketIdentifier: Word; aCodes: TsgcWSSUBACKS;
+  SubscribeProperties: TsgcWSMQTTSUBACKProperties);
 var
     Position: THABPosition;
 begin
@@ -282,7 +205,6 @@ begin
 
     SyncCallback(SourceID, True, 'Subscribed to ' + Topic + #10 + WhiteList + #10 + ExtraPayloads, Position);
 end;
-*)
 
 constructor TWSMQTTSource.Create(ID: Integer; Group: String; Callback: TSourcePositionCallback);
 begin
