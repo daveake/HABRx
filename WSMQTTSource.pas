@@ -107,6 +107,7 @@ begin
                             WSClient.TLS := True;
                             WSClient.Host := Host;
                             WSClient.Port := StrToIntDef(Port, 1883);
+                            WSClient.TLSOptions.Version := tls1_0;
 
                             if (UserName <> '') and (Password <> '') then begin
                                 MQTTClient.Authentication.Username := UserName;

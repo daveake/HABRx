@@ -19,7 +19,7 @@ type
     CurrentFrequency: Double;
     LoRaMode: Integer;
 
-    Line: AnsiString;
+    Line:               String;
     SNR:                Integer;
     HasSNR:             Boolean;
     PacketRSSI:         Integer;
