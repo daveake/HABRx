@@ -127,19 +127,12 @@ function TSondehubThread.UploadPosition(SourceID: Integer): Boolean;
 var
     UTC: TDateTime;
     URL, Json, Response: String;
-    Temperature: Double;
 begin
     UTC := TTimeZone.Local.ToUniversalTime(Now);
 
     URL := 'https://api.v2.sondehub.org/amateur/telemetry';
 
     with SondehubPositions[SourceID] do begin
-        if HaveExternalTemperature then begin
-            Temperature := ExternalTemperature;
-        end else if HaveInternalTemperature then begin
-            Temperature := InternalTemperature;
-        end;
-
         Json := '[{' +
                 // '"dev": "",' +
                 '"software_name": "' + SoftwareName + '",' +
@@ -152,7 +145,8 @@ begin
                 '"lon": ' + MyFormatFloat('0.00000', Longitude) + ',' +
                 '"alt": ' + MyFormatFloat('0', Altitude) + ',' +
                 DoubleToString('frequency', CurrentFrequency + FrequencyError / 1000.0, CurrentFrequency > 0.0) +
-                DoubleToString('temp', Temperature, HaveExternalTemperature or HaveInternalTemperature) +
+                DoubleToString('internal_temp', InternalTemperature, HaveInternalTemperature) +
+                DoubleToString('temp', ExternalTemperature, HaveExternalTemperature) +
                 DoubleToString('humidity', Humidity, HaveHumidity) +
                 DoubleToString('vel_h', Speed, HaveSpeed) +
                 DoubleToString('vel_v', AscentRate, HaveAscentRate) +

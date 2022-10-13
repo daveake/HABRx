@@ -451,7 +451,7 @@ begin
         end else if Command = 'MESSAGE' then begin
             Position := inherited;
 
-            Position.Modulation := 'LoRa (Mode ' + IntToStr(LoRaMode) + ')';
+            Position.Modulation := 'LoRa Mode ' + IntToStr(LoRaMode);
 
             Position.SNR := SNR;
             Position.HasSNR := HasSNR;

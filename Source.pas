@@ -204,7 +204,13 @@ begin
                 end;
 
                 '9': begin
-                    Position.BatteryVoltage := MyStrToFloat(Fields[i-1]) / 1000.0;
+                    if Pos('.', Fields[i-1]) > 0 then begin
+                        // Volts
+                        Position.BatteryVoltage := MyStrToFloat(Fields[i-1]);
+                    end else begin
+                        //mV --> V
+                        Position.BatteryVoltage := MyStrToFloat(Fields[i-1]) / 1000.0;
+                    end;
                     Position.HasBatteryVoltage := True;
                 end;
 
