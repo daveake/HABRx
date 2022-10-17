@@ -591,6 +591,7 @@ begin
                 if Start > 0 then begin
                     Line := Copy(Line, Start, Length(Line));
                     Line[Low(Line)] := '$';
+                    Position.Line := Line;
                     if CheckCRC and not ValidCRC(Line) then begin
                         Position.FailedCRC := True;
                     end else begin
