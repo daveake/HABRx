@@ -141,6 +141,8 @@ begin
         end;
     end;
 
+    JSONObject.Free;
+
     if PayloadCount > 0 then begin
         Position := default(THABPosition);
         SyncCallback(SourceID, True, 'Received ' + IntToStr(PayloadCount) + ' payload positions', Position);
