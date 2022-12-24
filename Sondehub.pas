@@ -145,8 +145,8 @@ begin
                 '"lon": ' + MyFormatFloat('0.00000', Longitude) + ',' +
                 '"alt": ' + MyFormatFloat('0', Altitude) + ',' +
                 DoubleToString('frequency', CurrentFrequency + FrequencyError / 1000.0, CurrentFrequency > 0.0) +
-                DoubleToString('internal_temp', InternalTemperature, HaveInternalTemperature) +
-                DoubleToString('temp', ExternalTemperature, HaveExternalTemperature) +
+                DoubleToString('temp', InternalTemperature, HaveInternalTemperature) +
+                DoubleToString('ext_temperature', ExternalTemperature, HaveExternalTemperature) +
                 DoubleToString('humidity', Humidity, HaveHumidity) +
                 DoubleToString('vel_h', Speed, HaveSpeed) +
                 DoubleToString('vel_v', AscentRate, HaveAscentRate) +
