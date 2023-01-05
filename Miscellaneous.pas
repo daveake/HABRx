@@ -221,8 +221,7 @@ const
     SONDEHUB_SOURCE = 4;
     GATEWAY_SOURCE_1 = 5;
     GATEWAY_SOURCE_2 = 6;
-    HABHUB_SOURCE = 7;
-    HABLINK_SOURCE = 8;
+    HABLINK_SOURCE = 7;
 
 
 var

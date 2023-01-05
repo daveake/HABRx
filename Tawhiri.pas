@@ -2,7 +2,8 @@ unit Tawhiri;
 
 interface
 
-uses DateUtils, SysUtils, Classes, IdBaseComponent, IdComponent, IdTCPConnection, IdTCPClient, IdHTTP, Math;
+uses DateUtils, SysUtils, Classes, IdBaseComponent, IdComponent, IdTCPConnection, IdTCPClient, IdHTTP, Math,
+     IdSSL, IdSSLOpenSSL, System.JSON;
 
 
 type TPredictionParameters = record
@@ -162,14 +163,25 @@ var
     ResponseStream: TMemoryStream;
     html: string;
     HTTP: TIdHTTP;
+    IdSSLIOHandlerSocketOpenSSL1: TIdSSLIOHandlerSocketOpenSSL;
 begin
     try
         try
             ResponseStream := TMemoryStream.Create;
+
+            IdSSLIOHandlerSocketOpenSSL1 := TIdSSLIOHandlerSocketOpenSSL.Create(nil);
+            with IdSSLIOHandlerSocketOpenSSL1 do begin
+                SSLOptions.Method := sslvTLSv1_2;
+                SSLOptions.SSLVersions := [sslvTLSv1_2];
+            end;
+
             HTTP := TIdHTTP.Create(nil);
+            HTTP.IOHandler := IdSSLIOHandlerSocketOpenSSL1;
+
             HTTP.Request.ContentType := 'text/json; charset=utf-8';
             HTTP.Request.ContentEncoding := 'utf-8';
             HTTP.HTTPOptions := [hoForceEncodeParams];
+
             HTTP.Get(url, responseStream);
             with TStringStream.Create do begin
                 try
@@ -195,6 +207,7 @@ begin
         end;
 
         HTTP.Free;
+        IdSSLIOHandlerSocketOpenSSL1.Free;
         ResponseStream.Free;
     end;
 end;
@@ -232,53 +245,59 @@ end;
 
 function TTawhiri.ProcessResponse(PayloadIndex: Integer; Response: String): Boolean;
 var
-    Strings: TStringList;
-    i: Integer;
+    i, j: Integer;
     Line, Command: String;
-    Latitude, Longitude, Altitude, Value: Double;
-    Ascending, Descending: Boolean;
+    JSONObject: TJSONObject;
+    JSONPair: TJSONPair;
+    JSONValue: TJSOnValue;
+    JSONItems, JSONPath: TJSONArray;    Latitude, Longitude, Altitude, Value: Double;
 begin
     Result := False;
 
-    Strings := TStringList.Create;
-    Strings.Text := Response;
-    Ascending := False;
-    Descending := False;
     PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Count := 0;
 
-    for i := 0 to Strings.Count-1 do begin
-        Line := Strings[i];
+    JSONObject := TJSONObject(TJSONObject.ParseJSONValue(Response));
 
-        if Ascending or Descending then begin
-            Command := GetCommand(Line);
-            if Command = 'altitude' then begin
-                Altitude := GetValue(Line);
-            end else if Command = 'latitude' then begin
-                Latitude := GetValue(Line);
-            end else if Command = 'longitude' then begin
-                Longitude := GetValue(Line);
-                if Longitude > 180 then Longitude := Longitude - 360;
+    for JSONPair in JSONObject do begin
+        if JSONPair.JSONString.Value = 'prediction' then begin
+//            Memo1.Lines.Add(JSONPair.ToString);
+//            Memo1.Lines.Add('');
 
-                if PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Count < High(PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Path) then begin
-                    Inc(PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Count);
+            // Get stages - only interested in descent
+            JSONValue := JSONPair.JsonValue;
 
-                    PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Path[PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Count].Latitude := Latitude;
-                    PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Path[PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Count].Longitude := Longitude;
-                    PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Path[PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Count].Altitude := Altitude;
+            if JSONValue is TJSONArray then begin
+                JSONItems := TJSONArray(JSONValue);
+
+                for i := 0 to JSONItems.Count-1 do begin
+                    JSONValue := JSONItems.Items[i];
+
+//                    if JSONValue.findvalue('stage').Value = 'descent' then  begin
+
+                    JSONValue := JSONValue.findvalue('trajectory');
+                    if JSONValue is TJSONArray then begin
+                        JSONPath := TJSONArray(JSONValue);
+                        for j := 0 to JSONPath.Count-1 do begin
+                            JSONValue := JSONPath.Items[j];
+
+                            Latitude := JSONValue.findvalue('latitude').Value.ToDouble;
+                            Longitude := JSONValue.findvalue('longitude').Value.ToDouble;
+                            Altitude := JSONValue.findvalue('altitude').Value.ToDouble;
+
+                            if Longitude > 180 then Longitude := Longitude - 360;
+
+                            if PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Count < High(PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Path) then begin
+                                Inc(PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Count);
+
+                                PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Path[PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Count].Latitude := Latitude;
+                                PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Path[PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Count].Longitude := Longitude;
+                                PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Path[PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Count].Altitude := Altitude;
+                            end;
+
+                            Result := True;
+                        end;
+                    end;
                 end;
-
-                Result := True;
-            end;
-        end;
-
-        if not Descending then begin
-            if (Pos('"stage"', Strings[i]) > 0) and (Pos('"descent"', Strings[i]) > 0) then begin
-                Descending := True;
-            end;
-        end;
-        if not Ascending then begin
-            if (Pos('"stage"', Strings[i]) > 0) and (Pos('"ascent"', Strings[i]) > 0) then begin
-                Ascending := True;
             end;
         end;
     end;
@@ -294,7 +313,6 @@ begin
         end;
     end;
 
-    Strings.Free;
 end;
 
 procedure TTawhiri.Delay(ms: Integer);
@@ -338,7 +356,7 @@ begin
                         DescentRate := 5;
                     end;
 
-                    URL := 'http://predict.cusf.co.uk/api/v1/?launch_latitude=' + MyFormatFloat('0.00000', Parameters.Latitude) +
+                    URL := 'https://api.v2.sondehub.org/tawhiri?launch_latitude=' + MyFormatFloat('0.00000', Parameters.Latitude) +
                            '&launch_longitude=' + MyFormatFloat('0.00000', Parameters.Longitude) +
                            '&launch_altitude=' + MyFormatFloat('0', Parameters.Altitude) +
                            '&launch_datetime=' + FormatDateTime('yyyy-mm-dd"T"hh:nn:ss%2B00:00', TTimeZone.Local.ToUniversalTime(Now)) +
