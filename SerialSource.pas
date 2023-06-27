@@ -43,7 +43,7 @@ type
   protected
     { Protected declarations }
     procedure Execute; override;
-    function ExtractPositionFrom(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition; override;
+    function ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition; override;
   public
     { Public declarations }
     procedure SendSetting(SettingName, SettingValue: String); override;
@@ -390,7 +390,7 @@ begin
 end;
 {$ENDIF}
 
-function TSerialSource.ExtractPositionFrom(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition;
+function TSerialSource.ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition;
 var
     Command: String;
     Position: THABPosition;

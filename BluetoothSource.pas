@@ -23,7 +23,7 @@ type
   protected
     { Protected declarations }
     procedure Execute; override;
-    function ExtractPositionFrom(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition; override;
+    function ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition; override;
   public
     { Public declarations }
     procedure SendSetting(SettingName, SettingValue: String); override;
@@ -213,7 +213,7 @@ begin
 {$ENDIF}
 end;
 
-function TBluetoothSource.ExtractPositionFrom(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition;
+function TBluetoothSource.ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition;
 var
     Command: String;
     Position: THABPosition;

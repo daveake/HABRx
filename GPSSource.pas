@@ -15,7 +15,7 @@ type
   protected
     { Protected declarations }
 {$IFDEF MSWINDOWS}
-    function ExtractPositionFrom(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition; override;
+    function ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition; override;
     procedure Execute; override;
 {$ENDIF}
   public
@@ -37,7 +37,7 @@ begin
 end;
 
 {$IFDEF MSWINDOWS}
-function TGPSSource.ExtractPositionFrom(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition;
+function TGPSSource.ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition;
 const
     Direction: Double = 0;
 var

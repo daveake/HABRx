@@ -20,7 +20,7 @@ type
   protected
     { Protected declarations }
     procedure InitialiseDevice; override;
-    function ExtractPositionFrom(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition; override;
+    function ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition; override;
     function GotFilterIfNeeded: Boolean; override;
   public
     { Public declarations }
@@ -256,7 +256,7 @@ begin
 end;
 
 
-function TAPRSSource.ExtractPositionFrom(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition;
+function TAPRSSource.ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition;
 var
     Position: THABPosition;
     Callsign, Passcode, FullLine: String;

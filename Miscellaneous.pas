@@ -29,7 +29,6 @@ type
     Latitude:       Double;
     Longitude:      Double;
     Altitude:       Double;
-    MaxAltitude:    Double;
 
     Satellites:         Integer;
     HasSatelliteCount:  Boolean;
@@ -96,6 +95,13 @@ type
     HaveLandingSpeed:           Boolean;
     TTL:                        Integer;
     HaveTTL:                    Boolean;
+
+    MaxAltitude:                Double;
+    HaveMaxAltitude:            Boolean;
+
+    Altitude2:                  Double;
+    HaveAltitude2:              Boolean;
+
 
     // Frequency error
     FrequencyError:     Double;

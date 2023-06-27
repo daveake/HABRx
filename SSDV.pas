@@ -85,7 +85,6 @@ begin
         JsonToSend.Free;
         SyncCallback(0, True, SentOK);
     end;
-    // Params.Free;
 end;
 
 
@@ -112,6 +111,7 @@ begin
         finally
             CritSSDV.Leave;
         end;
+
         if Packets.Count > 0 then begin
             UploadSSDV(Packets);
             UploadedSomething := True;
@@ -122,6 +122,8 @@ begin
             sleep(100);
         end;
     end;
+
+    Packets.Free;
 end;
 
 constructor TSSDVThread.Create(Callback: TStatusCallback);

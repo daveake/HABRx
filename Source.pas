@@ -36,8 +36,8 @@ type
     procedure LookForPredictionInSentence(var Position: THABPosition);
     procedure Execute; override;
     procedure SyncCallback(ID: Integer; Connected: Boolean; Line: String; Position: THABPosition);
-    function ExtractPositionFromSentence(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition;
-    function ExtractPositionFrom(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition; virtual;
+    function ExtractPositionFromSentence(Line: String; PayloadID: String = ''): THABPosition;
+    function ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition; virtual;
     function ExtractChaseCarPosition(Line: String): THABPosition;
     function GotFilterIfNeeded: Boolean; virtual;
     procedure AddCommand(Command: String);
@@ -135,14 +135,14 @@ begin
     Result.InUse := True;
 end;
 
-function TSource.ExtractPositionFrom(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition;
+function TSource.ExtractPositionFrom(Line: String; PayloadID: String = ''): THABPosition;
 begin
     if Pos('SENTENCE:', Line) = 1 then begin
         Result := ExtractPositionFromSentence(Copy(Line, 10, Length(Line)));
     end else if Pos('CHASE:', Line) = 1 then begin
         Result := ExtractChaseCarPosition(Copy(Line, 7, Length(Line)));
     end else begin
-        Result := ExtractPositionFromSentence(Line, PayloadID, CheckCRC);
+        Result := ExtractPositionFromSentence(Line, PayloadID);
     end;
 end;
 
@@ -258,6 +258,8 @@ begin
                 end;
 
                 'O': begin
+                    Position.MaxAltitude := MyStrToFloat(Fields[i-1]);
+                    Position.HaveMaxAltitude := True;
                 end;
 
                 'P': begin
@@ -295,6 +297,11 @@ begin
                 'W': begin
                     Position.LastCommand := Fields[i-1];
                     Position.HaveLandingSpeed := True;
+                end;
+
+                'X': begin
+                    Position.Altitude2 := MyStrToFloat(Fields[i-1]);
+                    Position.HaveAltitude2 := True;
                 end;
             end;
         except
@@ -345,7 +352,7 @@ begin
     end;
 end;
 
-function TSource.ExtractPositionFromSentence(Line: String; PayloadID: String = ''; CheckCRC: Boolean = False): THABPosition;
+function TSource.ExtractPositionFromSentence(Line: String; PayloadID: String = ''): THABPosition;
 var
     Position: THABPosition;
     Fields: TStringList;
@@ -592,9 +599,7 @@ begin
                     Line := Copy(Line, Start, Length(Line));
                     Line[Low(Line)] := '$';
                     Position.Line := Line;
-                    if CheckCRC and not ValidCRC(Line) then begin
-                        Position.FailedCRC := True;
-                    end else begin
+                    if ValidCRC(Line) then begin
                         Fields := TStringList.Create;
                         try
                             Split(',', Line, Fields);
@@ -645,6 +650,8 @@ begin
                         finally
                             Fields.Free;
                         end;
+                    end else begin
+                        Position.FailedCRC := True;
                     end;
                 end;
             end;

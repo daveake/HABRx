@@ -90,7 +90,7 @@ begin
                             Line := AClient.IOHandler.ReadLn;
                             if Line <> '' then begin
                                 try
-                                    Position := ExtractPositionFrom(Line, '', True);
+                                    Position := ExtractPositionFrom(Line, '');
                                     if Position.FailedCRC then begin
                                         SyncCallback(SourceID, True, 'Failed CRC Check', Position);
                                     end else if Position.InUse or Position.HasPacketRSSI or Position.HasCurrentRSSI then begin
