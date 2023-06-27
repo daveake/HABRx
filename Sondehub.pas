@@ -20,7 +20,7 @@ private
     EnableListenerUpload: Boolean;
     procedure SyncCallback(SourceID: Integer; Active, OK: Boolean; Status: String);
     function UploadJson(URL, Json: String; var Response: String): Boolean;
-    function UploadPosition(SourceID: Integer): Boolean;
+    function UploadPosition(SourceID: Integer; PositionForUpload: THABPosition): Boolean;
     function UploadListener: Boolean;
   public
     PayloadList: String;
@@ -123,7 +123,7 @@ begin
     end;
 end;
 
-function TSondehubThread.UploadPosition(SourceID: Integer): Boolean;
+function TSondehubThread.UploadPosition(SourceID: Integer; PositionForUpload: THABPosition): Boolean;
 var
     UTC: TDateTime;
     URL, Json, Response: String;
@@ -132,7 +132,7 @@ begin
 
     URL := 'https://api.v2.sondehub.org/amateur/telemetry';
 
-    with SondehubPositions[SourceID] do begin
+    with PositionForUpload do begin
         Json := '[{' +
                 // '"dev": "",' +
                 '"software_name": "' + SoftwareName + '",' +
@@ -204,6 +204,7 @@ procedure TSondehubThread.Execute;
 var
     Packets: TStringList;
     i, SourceID: Integer;
+    PositionForUpload: THABPosition;
 begin
     Packets := TStringList.Create;
 
@@ -215,6 +216,7 @@ begin
             for i := Low(SondehubPositions) to High(SondehubPositions) do begin
                 if SourceID < 0 then begin
                     if SondehubPositions[i].InUse then begin
+                        PositionForUpload := SondehubPositions[i];
                         SondehubPositions[i].InUse := False;
                         SourceID := i;
                     end;
@@ -226,7 +228,7 @@ begin
 
         if SourceID >= Low(SondeHubPositions) then begin
             try
-                UploadPosition(SourceID);
+                UploadPosition(SourceID, PositionForUpload);
             except
             end;
         end;
