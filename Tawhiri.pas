@@ -258,59 +258,63 @@ begin
 
     JSONObject := TJSONObject(TJSONObject.ParseJSONValue(Response));
 
-    for JSONPair in JSONObject do begin
-        if JSONPair.JSONString.Value = 'prediction' then begin
-//            Memo1.Lines.Add(JSONPair.ToString);
-//            Memo1.Lines.Add('');
+    try
+        for JSONPair in JSONObject do begin
+            if JSONPair.JSONString.Value = 'prediction' then begin
+    //            Memo1.Lines.Add(JSONPair.ToString);
+    //            Memo1.Lines.Add('');
 
-            // Get stages - only interested in descent
-            JSONValue := JSONPair.JsonValue;
+                // Get stages - only interested in descent
+                JSONValue := JSONPair.JsonValue;
 
-            if JSONValue is TJSONArray then begin
-                JSONItems := TJSONArray(JSONValue);
+                if JSONValue is TJSONArray then begin
+                    JSONItems := TJSONArray(JSONValue);
 
-                for i := 0 to JSONItems.Count-1 do begin
-                    JSONValue := JSONItems.Items[i];
+                    for i := 0 to JSONItems.Count-1 do begin
+                        JSONValue := JSONItems.Items[i];
 
-//                    if JSONValue.findvalue('stage').Value = 'descent' then  begin
+    //                    if JSONValue.findvalue('stage').Value = 'descent' then  begin
 
-                    JSONValue := JSONValue.findvalue('trajectory');
-                    if JSONValue is TJSONArray then begin
-                        JSONPath := TJSONArray(JSONValue);
-                        for j := 0 to JSONPath.Count-1 do begin
-                            JSONValue := JSONPath.Items[j];
+                        JSONValue := JSONValue.findvalue('trajectory');
+                        if JSONValue is TJSONArray then begin
+                            JSONPath := TJSONArray(JSONValue);
+                            for j := 0 to JSONPath.Count-1 do begin
+                                JSONValue := JSONPath.Items[j];
 
-                            Latitude := JSONValue.findvalue('latitude').Value.ToDouble;
-                            Longitude := JSONValue.findvalue('longitude').Value.ToDouble;
-                            Altitude := JSONValue.findvalue('altitude').Value.ToDouble;
+                                Latitude := JSONValue.findvalue('latitude').Value.ToDouble;
+                                Longitude := JSONValue.findvalue('longitude').Value.ToDouble;
+                                Altitude := JSONValue.findvalue('altitude').Value.ToDouble;
 
-                            if Longitude > 180 then Longitude := Longitude - 360;
+                                if Longitude > 180 then Longitude := Longitude - 360;
 
-                            if PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Count < High(PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Path) then begin
-                                Inc(PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Count);
+                                if PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Count < High(PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Path) then begin
+                                    Inc(PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Count);
 
-                                PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Path[PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Count].Latitude := Latitude;
-                                PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Path[PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Count].Longitude := Longitude;
-                                PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Path[PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Count].Altitude := Altitude;
+                                    PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Path[PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Count].Latitude := Latitude;
+                                    PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Path[PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Count].Longitude := Longitude;
+                                    PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Path[PayloadPredictions.PayloadPredictions[PayloadIndex].LandingPath.Path.Count].Altitude := Altitude;
+                                end;
+
+                                Result := True;
                             end;
-
-                            Result := True;
                         end;
                     end;
                 end;
             end;
         end;
-    end;
 
-    if Result then begin
-        with PayloadPredictions.PayloadPredictions[PayloadIndex] do begin
-            LandingPath.Valid := True;
-            LandingPath.Updated := True;
-            LandingPath.Latitude := Latitude;
-            LandingPath.Longitude := Longitude;
-            LandingPath.Altitude := Altitude;
-            LandingPath.LastPredAt := Now;
+        if Result then begin
+            with PayloadPredictions.PayloadPredictions[PayloadIndex] do begin
+                LandingPath.Valid := True;
+                LandingPath.Updated := True;
+                LandingPath.Latitude := Latitude;
+                LandingPath.Longitude := Longitude;
+                LandingPath.Altitude := Altitude;
+                LandingPath.LastPredAt := Now;
+            end;
         end;
+    finally
+        JSONObject.Free;
     end;
 
 end;

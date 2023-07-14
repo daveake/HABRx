@@ -101,52 +101,53 @@ begin
 
     JSONObject := TJSONObject(TJSONObject.ParseJSONValue(Response));
 
-    for JSONPair in JSONObject do begin
-        Position := default(THABPosition);
+    try
+        for JSONPair in JSONObject do begin
+            Position := default(THABPosition);
 
-        try
-            Position.PayloadID := JSONPair.JSONValue.FindValue('payload_callsign').Value;
+            try
+                Position.PayloadID := JSONPair.JSONValue.FindValue('payload_callsign').Value;
 
-            TimeStamp := JSONPair.JSONValue.FindValue('datetime').Value;
+                TimeStamp := JSONPair.JSONValue.FindValue('datetime').Value;
+                if Length(TimeStamp) >= 19 then begin
+                    Position.TimeStamp := EncodeDateTime(StrToIntDef(Copy(TimeStamp, 1, 4), 0),
+                                                         StrToIntDef(Copy(TimeStamp, 6, 2), 0),
+                                                         StrToIntDef(Copy(TimeStamp, 9, 2), 0),
+                                                         StrToIntDef(Copy(TimeStamp, 12, 2), 0),
+                                                         StrToIntDef(Copy(TimeStamp, 15, 2), 0),
+                                                         StrToIntDef(Copy(TimeStamp, 18, 2), 0),
+                                                         0);
+                    Position.Latitude := MyStrToFloat(JSONPair.JSONValue.FindValue('lat').Value);
+                    Position.Longitude := MyStrToFloat(JSONPair.JSONValue.FindValue('lon').Value);
+                    if JSONPair.JSONValue.FindValue('alt') <> nil then begin
+                        Position.Altitude := MyStrToFloat(JSONPair.JSONValue.FindValue('alt').Value);
+                    end;
 
-            if Length(TimeStamp) >= 19 then begin
-                Position.TimeStamp := EncodeDateTime(StrToIntDef(Copy(TimeStamp, 1, 4), 0),
-                                                     StrToIntDef(Copy(TimeStamp, 6, 2), 0),
-                                                     StrToIntDef(Copy(TimeStamp, 9, 2), 0),
-                                                     StrToIntDef(Copy(TimeStamp, 12, 2), 0),
-                                                     StrToIntDef(Copy(TimeStamp, 15, 2), 0),
-                                                     StrToIntDef(Copy(TimeStamp, 18, 2), 0),
-                                                     0);
-                Position.Latitude := MyStrToFloat(JSONPair.JSONValue.FindValue('lat').Value);
-                Position.Longitude := MyStrToFloat(JSONPair.JSONValue.FindValue('lon').Value);
-                if JSONPair.JSONValue.FindValue('alt') <> nil then begin
-                    Position.Altitude := MyStrToFloat(JSONPair.JSONValue.FindValue('alt').Value);
+                    if JSONPair.JSONValue.FindValue('raw') <> nil then begin
+                        Position.Line := JSONPair.JSONValue.FindValue('raw').Value;
+                    end;
+
+                    Position.ReceivedAt := Now;
+                    Position.Line := Position.PayloadID + ',' + TimeStamp + ',' + MyFormatFloat('0.00000', Position.Latitude) + ',' + MyFormatFloat('0.00000', Position.Longitude) + ',' + MyFormatFloat('0', Position.Altitude);
+                    Position.InUse := True;
+                    SyncCallback(SourceID, True,  '', Position);
+                    Inc(PayloadCount);
+                    Result := True;
                 end;
-
-                if JSONPair.JSONValue.FindValue('raw') <> nil then begin
-                    Position.Line := JSONPair.JSONValue.FindValue('raw').Value;
-                end;
-
-                Position.ReceivedAt := Now;
-                Position.Line := Position.PayloadID + ',' + TimeStamp + ',' + MyFormatFloat('0.00000', Position.Latitude) + ',' + MyFormatFloat('0.00000', Position.Longitude) + ',' + MyFormatFloat('0', Position.Altitude);
-                Position.InUse := True;
-                SyncCallback(SourceID, True,  '', Position);
-                Inc(PayloadCount);
-                Result := True;
+            except
+                Position.InUse := False;
+                Position.Line := 'Parsing Error';
+                SyncCallback(SourceID, True, '', Position);
             end;
-        except
-            Position.InUse := False;
-            Position.Line := 'Parsing Error';
-            SyncCallback(SourceID, True, '', Position);
         end;
+    finally
+        JSONObject.Free;
     end;
 
-    JSONObject.Free;
-
-    if PayloadCount > 0 then begin
-        Position := default(THABPosition);
-        SyncCallback(SourceID, True, 'Received ' + IntToStr(PayloadCount) + ' payload positions', Position);
-    end;
+//    if PayloadCount > 0 then begin
+//        Position := default(THABPosition);
+//        SyncCallback(SourceID, True, 'Received ' + IntToStr(PayloadCount) + ' payload positions', Position);
+//    end;
 end;
 
 procedure TSondehubSource.Delay(ms: Integer);
