@@ -125,6 +125,8 @@ begin
             Sleep(1000);
         end;
     end;
+
+    AClient.Free;
 end;
 
 constructor TSocketSource.Create(ID: Integer; Group: String; Callback: TSourcePositionCallback);

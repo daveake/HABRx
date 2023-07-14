@@ -129,6 +129,10 @@ begin
 
         sleep(500);
     end;
+
+    CritSection.Free;
+    TMSMQTTClient1.TimeOutSettings.Free;
+    TMSMQTTClient1.Free;
 end;
 
 procedure TMQTTThread.ConnectedStatusChanged(ASender: TObject;

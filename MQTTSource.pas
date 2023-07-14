@@ -105,6 +105,9 @@ begin
             Sleep(1000);
         end;
     end;
+
+    MQTTClient.TimeOutSettings.Free;
+    MQTTClient.Free;
 end;
 
 procedure TMQTTSource.ConnectedStatusChanged(ASender: TObject;

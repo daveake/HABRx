@@ -123,6 +123,8 @@ begin
         end;
     end;
 
+    SSDVPackets.Free;
+    CritSSDV.Free;
     Packets.Free;
 end;
 

@@ -208,6 +208,7 @@ function EncryptMessage(Password, Msg: String): String;
 {$ENDIF}
 
 procedure InitialiseSettings;
+procedure CloseSettings;
 
 function GetSettingString(Section, Item, Default: String): String;
 function GetSettingInteger(Section, Item: String; Default: Integer): Integer;
@@ -907,6 +908,11 @@ begin
             j := (j mod Length(Password)) + Low(Password);
         end;
     end;
+end;
+
+procedure CloseSettings;
+begin
+    Settings.Free;
 end;
 
 end.

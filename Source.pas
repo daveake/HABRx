@@ -49,6 +49,7 @@ type
     constructor Create(ID: Integer; Group: String; Callback: TSourcePositionCallback);
     function WaitingToSend: Boolean;
     procedure SetFilter(Filter: String);
+    destructor Destroy; override;
   end;
 
 implementation
@@ -56,6 +57,12 @@ implementation
 procedure TSource.Execute;
 begin
     Commands := TStringList.Create;
+end;
+
+destructor TSource.Destroy;
+begin
+    Commands.Free;
+    inherited;
 end;
 
 constructor TSource.Create(ID: Integer; Group: String; Callback: TSourcePositionCallback);

@@ -138,6 +138,9 @@ begin
             Sleep(1000);
         end;
     end;
+
+    MQTTClient.Free;
+    WSClient.Free;
 end;
 
 procedure TWSMQTTSource.MQTTMQTTConnect(Connection: TsgcWSConnection;  const Session: Boolean; const ReasonCode: Integer; const ReasonName: string; const ConnectProperties: TsgcWSMQTTCONNACKProperties);

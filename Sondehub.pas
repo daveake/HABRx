@@ -109,7 +109,7 @@ begin
 
         try
             IdHTTP1.Put(URL, JsonToSend);
-            Response := 'OK';
+            Response := 'OK: ' + Json;
             Result := True;
         except
             on E : Exception do begin
@@ -244,6 +244,9 @@ begin
 
         Sleep(1000);
     end;
+
+    Packets.Free;
+    CritSondehub.Free;
 end;
 
 constructor TSondehubThread.Create(Callback: TStatusCallback);
@@ -270,7 +273,10 @@ procedure TSondehubThread.SetListenerPosition(Latitude, Longitude, Altitude: Dou
 begin
     ListenerLatitude := Latitude;
     ListenerLongitude := Longitude;
-    ListenerAltitude := Altitude;
+
+    if not IsNan(Altitude) then begin
+        ListenerAltitude := Altitude;
+    end;
 end;
 
 procedure TSondehubThread.SetListener(Software, Version, Callsign: String; Mobile: Boolean = False; UploadPeriod: Double = 6 * 3600; EnableUpload: Boolean = True);
