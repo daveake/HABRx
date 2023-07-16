@@ -143,11 +143,6 @@ begin
     finally
         JSONObject.Free;
     end;
-
-//    if PayloadCount > 0 then begin
-//        Position := default(THABPosition);
-//        SyncCallback(SourceID, True, 'Received ' + IntToStr(PayloadCount) + ' payload positions', Position);
-//    end;
 end;
 
 procedure TSondehubSource.Delay(ms: Integer);

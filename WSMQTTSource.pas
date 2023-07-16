@@ -37,9 +37,30 @@ type
     { Public declarations }
   public
     constructor Create(ID: Integer; Group: String; Callback: TSourcePositionCallback);
+    destructor Destroy; override;
   end;
 
 implementation
+
+constructor TWSMQTTSource.Create(ID: Integer; Group: String; Callback: TSourcePositionCallback);
+begin
+    inherited Create(ID, Group, Callback);
+
+    // Create clients
+    WSClient := TsgcWebSocketClient.Create(nil);
+    WsClient.OnException := WSClientException;
+
+    MQTTClient := TsgcWSPClient_MQTT.Create(nil);
+    MQTTClient.Client := WSClient;
+end;
+
+destructor TWSMQTTSource.Destroy;
+begin
+    WSClient.Free;
+    MQTTClient.Free;
+
+    inherited;
+end;
 
 procedure TWSMQTTSource.Execute;
 var
@@ -48,16 +69,12 @@ var
 begin
     inherited;
 
-    // Create clients
-    WSClient := TsgcWebSocketClient.Create(nil);
-    WsClient.OnException := WSClientException;
-
-    MQTTClient := TsgcWSPClient_MQTT.Create(nil);
-    MQTTClient.Client := WSClient;
-
 {$IFDEF ANDROID}
     WSClient.TLSOptions.OpenSSL_Options.LibPath := oslpDefaultFolder;
 {$ENDIF}
+
+    MQTTClient.HeartBeat.Interval := 30;            // Needed to stop server from disconnecting after 1 minute
+    MQTTClient.HeartBeat.Enabled := True;
 
     MQTTClient.OnMQTTConnect := MQTTMQTTConnect;
     MQTTClient.OnMQTTDisconnect := MQTTMQTTDisconnect;
@@ -138,9 +155,6 @@ begin
             Sleep(1000);
         end;
     end;
-
-    MQTTClient.Free;
-    WSClient.Free;
 end;
 
 procedure TWSMQTTSource.MQTTMQTTConnect(Connection: TsgcWSConnection;  const Session: Boolean; const ReasonCode: Integer; const ReasonName: string; const ConnectProperties: TsgcWSMQTTCONNACKProperties);
@@ -208,11 +222,6 @@ begin
     Position := Default(THABPosition);
 
     SyncCallback(SourceID, True, 'Subscribed to ' + Topic + #10 + WhiteList + #10 + ExtraPayloads, Position);
-end;
-
-constructor TWSMQTTSource.Create(ID: Integer; Group: String; Callback: TSourcePositionCallback);
-begin
-    inherited Create(ID, Group, Callback);
 end;
 
 end.

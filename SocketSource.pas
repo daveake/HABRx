@@ -18,9 +18,25 @@ type
     { Public declarations }
   public
     constructor Create(ID: Integer; Group: String; Callback: TSourcePositionCallback);
+    destructor Destroy; override;
   end;
 
 implementation
+
+constructor TSocketSource.Create(ID: Integer; Group: String; Callback: TSourcePositionCallback);
+begin
+    inherited Create(ID, Group, Callback);
+
+    // Create client
+    AClient := TIdTCPClient.Create;
+end;
+
+destructor TSocketSource.Destroy;
+begin
+    AClient.Free;
+
+    inherited;
+end;
 
 procedure TSocketSource.Execute;
 var
@@ -29,9 +45,6 @@ var
     Port: Integer;
 begin
     inherited;
-
-    // Create client
-    AClient := TIdTCPClient.Create;
 
     while not Terminated do begin
         if GetSettingBoolean(GroupName, 'Enabled', True) and GotFilterIfNeeded then begin
@@ -125,13 +138,6 @@ begin
             Sleep(1000);
         end;
     end;
-
-    AClient.Free;
-end;
-
-constructor TSocketSource.Create(ID: Integer; Group: String; Callback: TSourcePositionCallback);
-begin
-    inherited Create(ID, Group, Callback);
 end;
 
 procedure TSocketSource.InitialiseDevice;

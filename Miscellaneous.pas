@@ -912,6 +912,10 @@ end;
 
 procedure CloseSettings;
 begin
+    if Ini <> nil then begin
+        Ini.Free;
+    end;
+
     Settings.Free;
 end;
 

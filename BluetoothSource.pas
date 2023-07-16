@@ -210,6 +210,9 @@ begin
         Sleep(5000);
     end;
 
+    Bluetooth1.Free;
+
+
 {$ENDIF}
 end;
 

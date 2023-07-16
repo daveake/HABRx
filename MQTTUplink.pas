@@ -21,9 +21,31 @@ private
     procedure Execute; override;
   published
     constructor Create(Callback: TStatusCallback);
+    destructor Destroy; override;
 end;
 
 implementation
+
+constructor TMQTTThread.Create(Callback: TStatusCallback);
+begin
+    CritSection := TCriticalSection.Create;
+
+    TMSMQTTClient1 := TTMSMQTTClient.Create(nil);
+
+    StatusCallback := Callback;
+
+    inherited Create(False);
+end;
+
+destructor TMQTTThread.Destroy;
+begin
+    CritSection.Free;
+
+    TMSMQTTClient1.TimeOutSettings.Free;
+    TMSMQTTClient1.Free;
+
+    inherited;
+end;
 
 procedure TMQTTThread.SetMQTTDetails(Server, UserName, Password, Topic, CarTopic: String);
 begin
@@ -129,10 +151,6 @@ begin
 
         sleep(500);
     end;
-
-    CritSection.Free;
-    TMSMQTTClient1.TimeOutSettings.Free;
-    TMSMQTTClient1.Free;
 end;
 
 procedure TMQTTThread.ConnectedStatusChanged(ASender: TObject;
@@ -149,17 +167,6 @@ begin
     end;
 end;
 
-
-constructor TMQTTThread.Create(Callback: TStatusCallback);
-begin
-    CritSection := TCriticalSection.Create;
-
-    TMSMQTTClient1 := TTMSMQTTClient.Create(nil);
-
-    StatusCallback := Callback;
-
-    inherited Create(False);
-end;
 
 procedure TMQTTThread.SyncCallback(SourceID: Integer; Active, OK: Boolean; Status: String);
 begin

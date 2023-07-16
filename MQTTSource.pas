@@ -21,9 +21,26 @@ type
     { Public declarations }
   public
     constructor Create(ID: Integer; Group: String; Callback: TSourcePositionCallback);
+    destructor Destroy; override;
   end;
 
 implementation
+
+constructor TMQTTSource.Create(ID: Integer; Group: String; Callback: TSourcePositionCallback);
+begin
+    // Create client
+    MQTTClient := TTMSMQTTClient.Create(nil);
+
+    inherited Create(ID, Group, Callback);
+end;
+
+destructor TMQTTSource.Destroy;
+begin
+    MQTTClient.TimeOutSettings.Free;
+    MQTTClient.Free;
+
+    inherited;
+end;
 
 procedure TMQTTSource.Execute;
 var
@@ -32,8 +49,6 @@ var
 begin
     inherited;
 
-    // Create client
-    MQTTClient := TTMSMQTTClient.Create(nil);
     MQTTClient.UseSSL := False;
     MQTTClient.OnConnectedStatusChanged := ConnectedStatusChanged;
     MQTTClient.OnSubscriptionAcknowledged := SubscriptionAcknowledged;
@@ -105,9 +120,6 @@ begin
             Sleep(1000);
         end;
     end;
-
-    MQTTClient.TimeOutSettings.Free;
-    MQTTClient.Free;
 end;
 
 procedure TMQTTSource.ConnectedStatusChanged(ASender: TObject;
@@ -163,9 +175,5 @@ begin
     SyncCallback(SourceID, True, 'Subscribed to ' + Topic + #10 + WhiteList + #10 + ExtraPayloads, Position);
 end;
 
-constructor TMQTTSource.Create(ID: Integer; Group: String; Callback: TSourcePositionCallback);
-begin
-    inherited Create(ID, Group, Callback);
-end;
 
 end.
