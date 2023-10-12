@@ -238,7 +238,8 @@ begin
                 UploadListener;
                 NextListenerUploadAt := Now + ListenerUploadPeriod / 86400;
             except
-                NextListenerUploadAt := Now + Min(ListenerUploadPeriod, 60) / 86400;
+                // Try again soon
+                NextListenerUploadAt := Now + 5 / 86400;
             end;
         end;
 
@@ -285,7 +286,7 @@ begin
     SoftwareVersion := Version;
     OurCallsign := Callsign;
     IsMobile := Mobile;
-    ListenerUploadPeriod := UploadPeriod;
+    ListenerUploadPeriod := Max(UploadPeriod, 15);      // Limit to min of 15 seconds
     EnableListenerUpload := EnableUpload;
 end;
 

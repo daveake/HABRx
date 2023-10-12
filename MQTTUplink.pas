@@ -15,7 +15,7 @@ private
     procedure SyncCallback(SourceID: Integer; Active, OK: Boolean; Status: String);
     procedure ConnectedStatusChanged(ASender: TObject; const AConnected: Boolean; AStatus: TTMSMQTTConnectionStatus);
   public
-    procedure SendTelemetry(PayloadID, Sentence: String);
+    procedure SendTelemetry(PayloadID, Listener, Sentence: String);
     procedure SendChase(Callsign, Position: String);
     procedure SetMQTTDetails(Server, UserName, Password, Topic, CarTopic: String);
     procedure Execute; override;
@@ -59,11 +59,14 @@ begin
     TMSMQTTClient1.Credentials.Password := Password;
 end;
 
-procedure TMQTTThread.SendTelemetry(PayloadID, Sentence: String);
+procedure TMQTTThread.SendTelemetry(PayloadID, Listener, Sentence: String);
+var
+    Temp: String;
 begin
     CritSection.Enter;
     try
-        TelemetryTopic := StringReplace(TopicTemplate, '$PAYLOAD$', PayloadID, [rfReplaceAll, rfIgnoreCase]);
+        Temp := StringReplace(TopicTemplate, '$PAYLOAD$', PayloadID, [rfReplaceAll, rfIgnoreCase]);
+        TelemetryTopic := StringReplace(Temp, '$LISTENER$', Listener, [rfReplaceAll, rfIgnoreCase]);
         TelemetryMessage := Sentence;
     finally
         CritSection.Leave;

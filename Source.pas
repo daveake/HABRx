@@ -754,6 +754,7 @@ procedure TSource.ProcessMQTTMessage(Topic, Value: String);
 var
     Position: THABPosition;
     TimeStamp, Sentence: String;
+    Posn: Integer;
     JSONValue: TJSONValue;
 begin
     Position := Default(THABPosition);
@@ -773,28 +774,53 @@ begin
             if Copy(Sentence, 1, 2) = '$$' then begin
                 Position := ExtractPositionFrom(Sentence);
             end else begin
-                Position.PayloadID := JSONValue.FindValue('payload_callsign').Value;
+                if Pos('/chase/', Topic) > 0 then begin
+                    Posn := LastDelimiter('/', Topic);
+                    Position.PayloadID := Copy(Topic, Posn+1, 99) + '_CHASE';
 
-                TimeStamp := JSONValue.FindValue('datetime').Value;
+                    TimeStamp := JSONValue.FindValue('time').Value;
 
-                if Length(TimeStamp) >= 19 then begin
-                    Position.TimeStamp := EncodeDateTime(StrToIntDef(Copy(TimeStamp, 1, 4), 0),
-                                                         StrToIntDef(Copy(TimeStamp, 6, 2), 0),
-                                                         StrToIntDef(Copy(TimeStamp, 9, 2), 0),
-                                                         StrToIntDef(Copy(TimeStamp, 12, 2), 0),
-                                                         StrToIntDef(Copy(TimeStamp, 15, 2), 0),
-                                                         StrToIntDef(Copy(TimeStamp, 18, 2), 0),
+                    if Length(TimeStamp) >= 8 then begin
+                        Position.TimeStamp := EncodeTime(StrToIntDef(Copy(TimeStamp, 1, 2), 0),
+                                                         StrToIntDef(Copy(TimeStamp, 4, 2), 0),
+                                                         StrToIntDef(Copy(TimeStamp, 7, 2), 0),
                                                          0);
-                    Position.Latitude := MyStrToFloat(JSONValue.FindValue('lat').Value);
-                    Position.Longitude := MyStrToFloat(JSONValue.FindValue('lon').Value);
-                    if JSONValue.FindValue('alt') <> nil then begin
-                        Position.Altitude := MyStrToFloat(JSONValue.FindValue('alt').Value);
+                        Position.Latitude := MyStrToFloat(JSONValue.FindValue('lat').Value);
+                        Position.Longitude := MyStrToFloat(JSONValue.FindValue('lon').Value);
+                        if JSONValue.FindValue('alt') <> nil then begin
+                            Position.Altitude := MyStrToFloat(JSONValue.FindValue('alt').Value);
+                        end;
+
+                        Position.Line := Position.PayloadID + ',' + FormatDateTime('hh:nn:ss', Position.TimeStamp) + ',' + MyFormatFloat('0.00000', Position.Latitude) + ',' + MyFormatFloat('0.00000', Position.Longitude) + ',' + MyFormatFloat('0', Position.Altitude);
+
+                        Position.ReceivedAt := Now;
+                        Position.IsChase := True;
+                        Position.InUse := True;
                     end;
+                end else begin
+                    Position.PayloadID := JSONValue.FindValue('payload_callsign').Value;
 
-                    Position.Line := Position.PayloadID + ',' + FormatDateTime('hh:nn:ss', Position.TimeStamp) + ',' + MyFormatFloat('0.00000', Position.Latitude) + ',' + MyFormatFloat('0.00000', Position.Longitude) + ',' + MyFormatFloat('0', Position.Altitude);
+                    TimeStamp := JSONValue.FindValue('datetime').Value;
 
-                    Position.ReceivedAt := Now;
-                    Position.InUse := True;
+                    if Length(TimeStamp) >= 19 then begin
+                        Position.TimeStamp := EncodeDateTime(StrToIntDef(Copy(TimeStamp, 1, 4), 0),
+                                                             StrToIntDef(Copy(TimeStamp, 6, 2), 0),
+                                                             StrToIntDef(Copy(TimeStamp, 9, 2), 0),
+                                                             StrToIntDef(Copy(TimeStamp, 12, 2), 0),
+                                                             StrToIntDef(Copy(TimeStamp, 15, 2), 0),
+                                                             StrToIntDef(Copy(TimeStamp, 18, 2), 0),
+                                                             0);
+                        Position.Latitude := MyStrToFloat(JSONValue.FindValue('lat').Value);
+                        Position.Longitude := MyStrToFloat(JSONValue.FindValue('lon').Value);
+                        if JSONValue.FindValue('alt') <> nil then begin
+                            Position.Altitude := MyStrToFloat(JSONValue.FindValue('alt').Value);
+                        end;
+
+                        Position.Line := Position.PayloadID + ',' + FormatDateTime('hh:nn:ss', Position.TimeStamp) + ',' + MyFormatFloat('0.00000', Position.Latitude) + ',' + MyFormatFloat('0.00000', Position.Longitude) + ',' + MyFormatFloat('0', Position.Altitude);
+
+                        Position.ReceivedAt := Now;
+                        Position.InUse := True;
+                    end;
                 end;
             end;
         except

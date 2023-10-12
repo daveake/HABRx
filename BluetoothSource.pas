@@ -159,11 +159,11 @@ begin
                             if Commands.Count > 0 then begin
                                 try
                                     SendMessage('Sending ' + Commands[0]);
-                                    Sleep(1000);
+                                    // Sleep(1000);
                                     FSocket.SendData(TEncoding.UTF8.GetBytes(Commands[0] + #13));
                                     Commands.Delete(0);
-                                    Sleep(1000);
-                                    SendMessage(' ');
+                                    // Sleep(1000);
+                                    // SendMessage(' ');
                                 except
                                     Connected := False;
                                     SendMessage('Disconnected From Device');
@@ -196,6 +196,8 @@ begin
                                     Line := Line + Chr(Bytes[i]);
                                 end;
                             end;
+
+                            Sleep(200);
                         end;
 
                         FSocket.Free;

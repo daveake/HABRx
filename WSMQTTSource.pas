@@ -221,7 +221,8 @@ var
 begin
     Position := Default(THABPosition);
 
-    SyncCallback(SourceID, True, 'Subscribed to ' + Topic + #10 + WhiteList + #10 + ExtraPayloads, Position);
+    // SyncCallback(SourceID, True, 'Subscribed to ' + Topic + #10 + WhiteList + #10 + ExtraPayloads, Position);
+    SyncCallback(SourceID, True, 'Subscribed to ' + Topic + WhiteList + ExtraPayloads, Position);
 end;
 
 end.
